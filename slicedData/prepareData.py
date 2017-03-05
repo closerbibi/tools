@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import math
 import pylab
 import matplotlib.patches as patches
-from joblib import Parallel, delayed
+#from joblib import Parallel, delayed
 from multiprocessing import Pool
 import itertools
 
@@ -29,7 +29,7 @@ def compute_mean():
     print "Hello, I am empty"
 
 
-def constructing_grid(max_idxy,ix,iy,grid,large_layerpc):
+def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor):
 
     for ix in idxx:
         for iy in idxy:
@@ -38,7 +38,9 @@ def constructing_grid(max_idxy,ix,iy,grid,large_layerpc):
             location = (large_layerpc[0]==ix)*(large_layerpc[1]==iy)
             grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
             # find max: channel 1
-            if grid[0][rviy][ix] == 0:   # if empty, giving lowest value of current layer
+            if large_layerpc.shape[1] == 0:
+                grid[1][rviy][ix] = cur_floor
+            elif grid[0][rviy][ix] == 0:   # if empty, giving lowest value of current layer
                 grid[1][rviy][ix] = np.min(large_layerpc[2])
             else:
                 grid[1][rviy][ix] = np.max(large_layerpc[2][location])
@@ -84,7 +86,7 @@ def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax):
     for i in xrange(len(xmin)):
         ax.add_patch(patches.Rectangle( (xmin[i],ymin[i]), xlen[i], ylen[i], fill=False, edgecolor='green' ))
         #ax.add_patch(patches.Rectangle( (ymin[i],xmin[i]), ylen[i], xlen[i], fill=False, edgecolor='green' ))
-    plt.imshow(grid[0,:])
+    plt.imshow(grid)
     plt.draw()
     plt.title('layer:'+'' )
     ax.set_xlabel('X Label')
@@ -125,23 +127,6 @@ def slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, poolin
     layers = 25
     l_step = (ceiling - floor)/layers
     layer = {}
-    # find index in the range
-    for layer_num in xrange(layers):
-        cur_ceiling = floor + l_step*(layer_num+1)
-        cur_floor = floor + l_step*layer_num
-
-        # trim layer without target class (chair only first)
-        # change to more accurate layer finding
-        if (cur_ceiling > zmax).all() or (cur_floor < zmin).all():
-            continue
-        idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
-        layer[layer_num] = pc[:,idx[0]]
-
-    # show 3d data and bbox corner
-    #plot_3d(layer, xmin, ymin, xmax, ymax, zmin, zmax, layers)
-    
-    # making grid
-    
 
     pcx_shift = pc[0]-np.min(pc[0])
     pcy_shift = pc[1]-np.min(pc[1])
@@ -151,7 +136,26 @@ def slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, poolin
     idxx = range(int(np.min(largepc[0])),int(np.max(largepc[0])+1),1)
     idxy = range(int(np.min(largepc[1])),int(np.max(largepc[1])+1),1)
     data_grid = np.meshgrid(idxx,idxy)
-    for ilayer in layer.keys(): #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+    s_den = {}
+    s_max = {}
+    sw=0
+    # find index in the range
+    # according to the analyse, picking layers who are most polular
+    for ilayer in xrange(1,14):#xrange(layers):
+        cur_ceiling = floor + l_step*(ilayer+1)
+        cur_floor = floor + l_step*ilayer
+        '''
+        # trim layer without target class (chair only first)
+        # change to more accurate layer finding
+        if (cur_ceiling > zmax).all() or (cur_floor < zmin).all():
+            continue
+        '''
+        idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
+        layer[ilayer] = pc[:,idx[0]]
+
+        # show 3d data and bbox corner
+        #plot_3d(layer, xmin, ymin, xmax, ymax, zmin, zmax, layers) 
+        # making grid
         layerpcx_shift = layer[ilayer][0]-np.min(pc[0])
         layerpcy_shift = layer[ilayer][1]-np.min(pc[1])
         layerlargex = np.floor(layerpcx_shift*100)
@@ -175,46 +179,45 @@ def slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, poolin
 
         '''
 
-        '''
-        for ix in idxx:
-            for iy in idxy:
-                rviy = max(idxy) - iy
-                # compute density: channel 0
-                location = (large_layerpc[0]==ix)*(large_layerpc[1]==iy)
-                grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
-                # find max: channel 1
-                if grid[0][rviy][ix] == 0:   # if empty, giving lowest value of current layer
-                    grid[1][rviy][ix] = np.min(large_layerpc[2])
-                else:
-                    grid[1][rviy][ix] = np.max(large_layerpc[2][location])
-        '''
+        grid = constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor)
+        s_den[ilayer] = grid[0]
+        s_max[ilayer] = grid[1]
 
-        #np.save('images/picture_%06d_%03d.npy'%(imagenum,ilayer),grid)
+    arrays_den = [s_den[x] for x in layer.keys()]
+    arrays_max = [s_max[y] for y in layer.keys()]
+    scene_den = np.stack(arrays_den, axis=0)
+    scene_max = np.stack(arrays_max, axis=0)
+
+    np.save('../../data/ch13/den/images/picture_%06d.npy'%(imagenum),scene_den)
+    np.save('../../data/ch13/max/images/picture_%06d.npy'%(imagenum),scene_max)
     xmin = xmin - np.min(pc[0]); xmax = xmax - np.min(pc[0]); ymin = ymin - np.min(pc[1]); ymax = ymax - np.min(pc[1]);
     xmin = np.floor(xmin*100); xmax = np.floor(xmax*100); ymin = np.floor(ymin*100); ymax = np.floor(ymax*100); #zmin = np.floor(zmin*100); zmax = np.floor(zmax*100);
     tmp_ymax = max(idxy) - ymin; ymin = max(idxy) - ymax; ymax = tmp_ymax
     # plot 2d to show box and data
-    #plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax)
-    
+    '''
+    for kk in layer.keys()-1:
+        plot_2d_pc_bbox(scene_den[kk], xmin, ymin, xmax, ymax)
+        plot_2d_pc_bbox(scene_max[kk], xmin, ymin, xmax, ymax)
+    '''
     return grid, xmin, ymin, xmax, ymax
 
 if __name__ == '__main__':
 
-    data = h5py.File('/media/closerbibi/internal3/3D/understanding/rankpooling/rgbd_data/nyu_v2_labeled/nyu_depth_v2_labeled.mat')
+    data = h5py.File('/media/disk2/3D/understanding/rankpooling/rgbd_data/nyu_v2_labeled/nyu_depth_v2_labeled.mat')
 
     #calibration parameters from author
     K = np.array([[5.7616540758591043e+02,0,3.2442516903961865e+02],[0,5.7375619782082447e+02,2.3584766381177013e+02],[0,0,1]]) 
 
     count=1;
 
-    for imagenum in xrange(data['depths'].shape[0]+1):#size(depths,3):
-        if np.where(np.array([88, 179, 390, 650])==imagenum)[0].size != 0:
-            continue
+    for imagenum in xrange(434,1450):#xrange(data['depths'].shape[0]+1):#size(depths,3):
+        #if np.where(np.array([88, 179, 368, 390, 650])==imagenum)[0].size != 0:
+        #    continue
         print 'now at image: %d' % (imagenum)
         start_time = time.time()
         # bed=157, chair=5, table=19, sofa=83, toilet=124
         try:
-            box_pc = sio.loadmat('../alignData/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by ../seeAlignment_pc_3dBox.m
+            box_pc = sio.loadmat('alignData/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by ../seeAlignment_pc_3dBox.m
         except:
             continue
         #points3d = points3d'
@@ -238,7 +241,7 @@ if __name__ == '__main__':
         #slicedto2D    
         grid, xmin, ymin, xmax, ymax = slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, pooling);
         for k in xrange(len(clss)):
-            fid = open('./label_box_chair/picture_%07d.txt'%(imagenum),'w')
+            fid = open('../../data/ch13/label_box_chair/picture_%06d.txt'%(imagenum),'w')
             if str(clss[k][0]) == 'chair':
                 fid.write('(%d, %d) - (%d, %d) - (%s)'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
             fid.close()
