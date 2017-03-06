@@ -28,6 +28,39 @@ def normalize_data():
 def compute_mean():
     print "Hello, I am empty"
 
+def rescale_pc(pc):
+    pcx_shift = pc[0]-np.min(pc[0])
+    pcy_shift = pc[1]-np.min(pc[1])
+    largex = np.floor(pcx_shift*100)
+    largey = np.floor(pcy_shift*100)
+    largepc = np.vstack((largex,largey,pc[2]))
+    idxx = range(int(np.min(largepc[0])),int(np.max(largepc[0])+1),1)
+    idxy = range(int(np.min(largepc[1])),int(np.max(largepc[1])+1),1)
+    return idxx,idxy
+
+
+def rescale_box(xmin, ymin, xmax, ymax, pc, idxx, idxy):
+    xmin = xmin - np.min(pc[0]); 
+    xmax = xmax - np.min(pc[0]); 
+    ymin = ymin - np.min(pc[1]); 
+    ymax = ymax - np.min(pc[1]);
+    xmin = np.floor(xmin*100); 
+    xmax = np.floor(xmax*100); 
+    ymin = np.floor(ymin*100); 
+    ymax = np.floor(ymax*100); #zmin = np.floor(zmin*100); zmax = np.floor(zmax*100);
+    tmp_ymax = max(idxy) - ymin; 
+    ymin = max(idxy) - ymax; 
+    ymax = tmp_ymax
+    for kk in xrange(len(xmin)):
+        if xmin[kk] <= 0:
+            xmin[kk] = 1
+        if ymin[kk] <= 0:
+            ymin[kk] = 1
+        if xmax[kk] >= max(idxx):
+            xmax[kk] = max(idxx)-1
+        if ymax[kk] >= max(idxy):
+            ymax[kk] = max(idxy)-1
+    return xmin, ymin, xmax, ymax
 
 def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor):
 
@@ -116,7 +149,7 @@ def plot_3d(layer, xmin, xmax, ymin, ymax, zmin, zmax, layers):
     ax.set_zlabel('Z Label')
     plt.show()
 
-def slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, pooling):
+def slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy):
     # find upright vector
     upright = np.array([1e-06,1e-06, 1])
     points_height = pc[2,:]
@@ -128,13 +161,6 @@ def slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, poolin
     l_step = (ceiling - floor)/layers
     layer = {}
 
-    pcx_shift = pc[0]-np.min(pc[0])
-    pcy_shift = pc[1]-np.min(pc[1])
-    largex = np.floor(pcx_shift*100)
-    largey = np.floor(pcy_shift*100)
-    largepc = np.vstack((largex,largey,pc[2]))
-    idxx = range(int(np.min(largepc[0])),int(np.max(largepc[0])+1),1)
-    idxy = range(int(np.min(largepc[1])),int(np.max(largepc[1])+1),1)
     data_grid = np.meshgrid(idxx,idxy)
     s_den = {}
     s_max = {}
@@ -190,16 +216,13 @@ def slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, poolin
 
     np.save('../../data/ch13/den/images/picture_%06d.npy'%(imagenum),scene_den)
     np.save('../../data/ch13/max/images/picture_%06d.npy'%(imagenum),scene_max)
-    xmin = xmin - np.min(pc[0]); xmax = xmax - np.min(pc[0]); ymin = ymin - np.min(pc[1]); ymax = ymax - np.min(pc[1]);
-    xmin = np.floor(xmin*100); xmax = np.floor(xmax*100); ymin = np.floor(ymin*100); ymax = np.floor(ymax*100); #zmin = np.floor(zmin*100); zmax = np.floor(zmax*100);
-    tmp_ymax = max(idxy) - ymin; ymin = max(idxy) - ymax; ymax = tmp_ymax
     # plot 2d to show box and data
     '''
     for kk in layer.keys()-1:
-        plot_2d_pc_bbox(scene_den[kk], xmin, ymin, xmax, ymax)
+        plot_3d_pc_bbox(scene_den[kk], xmin, ymin, xmax, ymax)
         plot_2d_pc_bbox(scene_max[kk], xmin, ymin, xmax, ymax)
     '''
-    return grid, xmin, ymin, xmax, ymax
+    return grid
 
 if __name__ == '__main__':
 
@@ -210,7 +233,7 @@ if __name__ == '__main__':
 
     count=1;
 
-    for imagenum in xrange(434,1450):#xrange(data['depths'].shape[0]+1):#size(depths,3):
+    for imagenum in xrange(1,1450):#xrange(data['depths'].shape[0]+1):#size(depths,3):
         #if np.where(np.array([88, 179, 368, 390, 650])==imagenum)[0].size != 0:
         #    continue
         print 'now at image: %d' % (imagenum)
@@ -228,7 +251,7 @@ if __name__ == '__main__':
         pc = np.swapaxes(pc, 0, 1)
         # change pc to y,x,z
         #pc = pc[[1,0,2],:]
-        normals = sio.loadmat('./normalAndpc/normalAndpc%06d.mat'%(imagenum))['normals']
+        #normals = sio.loadmat('./normalAndpc/normalAndpc%06d.mat'%(imagenum))['normals']
         pooling = 0
 
         if np.where(clss=='chair')[0].size == 0:
@@ -238,22 +261,18 @@ if __name__ == '__main__':
         xmin = xmin[cha_fil]; ymin = ymin[cha_fil]; zmin = zmin[cha_fil]
         xmax = xmax[cha_fil]; ymax = ymax[cha_fil]; zmax = zmax[cha_fil]
         clss = clss[cha_fil]
+
+        # rescale pc
+        idxx, idxy = rescale_pc(pc)
+
+        # rescale box to fit image size
+        xmin, ymin, xmax, ymax = rescale_box(xmin, ymin, xmax, ymax, pc, idxx, idxy)
+
         #slicedto2D    
-        grid, xmin, ymin, xmax, ymax = slicedto2D(pc, normals, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, pooling);
+        #grid = slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax)
         for k in xrange(len(clss)):
             fid = open('../../data/ch13/label_box_chair/picture_%06d.txt'%(imagenum),'w')
             if str(clss[k][0]) == 'chair':
                 fid.write('(%d, %d) - (%d, %d) - (%s)'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
             fid.close()
-        '''
-        %% computing mean
-        mean1 = mean1 + mean_all(1);
-        mean2 = mean2 + mean_all(2);
-        mean3 = mean3 + mean_all(3);
-        mean4 = mean4 + mean_all(4);
-        %%  
-        count=count+1;
-    »···toc;
-        disp(imagenum)
-        '''
         print 'time: %.2f s' % (time.time()-start_time)
