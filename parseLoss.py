@@ -22,8 +22,8 @@ def loadfile(filename):
                     loss = line.split(' ')[set_index+3].split('\n')[0] #8 --> 9
                     loss = float(loss)
                     print loss
-                    if loss > 3.0:
-                        loss = 3.0
+                    #if loss > 3.0:
+                    #    loss = 3.0
                     iter_dict[iteration] = loss
             except ValueError:
                 print 'value error'

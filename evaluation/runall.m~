@@ -1,18 +1,16 @@
-target_classes = {'chair'};%,'table','sofa','bed','toilet'}
+target_classes = {'chair'}%,'table','sofa','bed','toilet'}
 for kkk = 1%:5
     target_class = target_classes{kkk};
     % test
     %fpath = sprintf('../../results/test/comp4-27463_det_test_%s.txt',target_class);
     % train
-    filename = 'chair_maxgrd_320000';
-    IOU = 0.3;
-    type = '';
-    fpath = sprintf('../../faster-rcnn_13_channel%s/results/train/%s.txt',type,filename);
+    filename = 'chair_den_';
+    fpath = sprintf('../../faster-rcnn_13_channel_den/results/train/%s.txt',filename);
     label_parent_dir = '../../faster-rcnn_13_channel/data/DIRE/Annotations';
     gt_file_list = dir(label_parent_dir);
     
     [bboxes, confidences, image_ids] = fetch_result(fpath);
-%     save('rcnn_result.mat','bboxes','confidences','image_ids')
+    save('rcnn_result.mat','bboxes','confidences','image_ids')
     
 %     %% trim low confidence
 %     target_id = find(confidences>0.2);
@@ -28,7 +26,7 @@ for kkk = 1%:5
         label_path = fullfile(label_parent_dir,sprintf('picture_%06d.txt',unique_image(i)));
         [gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections, obj_count] = ...
             evaluate_detections(bboxes(ids,:), confidences(ids,:), image_ids(ids,:), ...
-            label_path, 0, target_class, IOU);
+            label_path, 0, target_class, 0.3);
 %         all_tp = [all_tp;tp];
 %         all_fp = [all_fp;fp];
 %         all_box_num = all_box_num + length(tp);
@@ -44,7 +42,7 @@ for kkk = 1%:5
     end
     
     [prec, rec, ap, cum_tp, cum_fp]=compute_cu_pr(all_tp,all_fp,all_gt_box_num,confidences);
-    draw(prec, rec, ap, cum_fp, filename,IOU)
+    draw(prec, rec, ap, cum_fp)
     
     
     disp(target_class)

@@ -62,7 +62,7 @@ def rescale_box(xmin, ymin, xmax, ymax, pc, idxx, idxy):
             ymax[kk] = max(idxy)-1
     return xmin, ymin, xmax, ymax
 
-def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
+def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor):
 
     for ix in idxx:
         for iy in idxy:
@@ -72,15 +72,11 @@ def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
             grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
             # find max: channel 1
             if large_layerpc.shape[1] == 0:
-                grid[1][rviy][ix] = cur_floor #np.min(pc[2])
-                grid[2][rviy][ix] = np.min(pc[2])
-            elif large_layerpc[2][location].shape[0]==0:   # if empty, giving lowest value among all pc
-                grid[1][rviy][ix] = np.min(large_layerpc[2]) #np.min(pc[2])
-                grid[2][rviy][ix] = np.min(pc[2])
+                grid[1][rviy][ix] = cur_floor
+            elif grid[0][rviy][ix] == 0:   # if empty, giving lowest value of current layer
+                grid[1][rviy][ix] = np.min(large_layerpc[2])
             else:
-                layermax = np.max(large_layerpc[2][location])
-                grid[1][rviy][ix] = layermax
-                grid[2][rviy][ix] = layermax
+                grid[1][rviy][ix] = np.max(large_layerpc[2][location])
     return grid
 
 '''
@@ -115,7 +111,7 @@ def constructing_grid(max_idxy,ix,iy,grid,large_layerpc):
         grid[1][rviy][ix] = np.max(large_layerpc[2][location])
     return grid
 '''
-def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax, layer, typedata):
+def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax):
     fig = pylab.figure()
     ax = fig.add_subplot(111, aspect='equal')
     xlen=  xmax - xmin
@@ -125,7 +121,7 @@ def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax, layer, typedata):
         #ax.add_patch(patches.Rectangle( (ymin[i],xmin[i]), ylen[i], xlen[i], fill=False, edgecolor='green' ))
     plt.imshow(grid)
     plt.draw()
-    plt.title('layer:'+'%d'%(layer)+ 'type: %s'%(typedata))
+    plt.title('layer:'+'' )
     ax.set_xlabel('X Label')
     ax.set_ylabel('Y Label')
     plt.show()
@@ -167,12 +163,11 @@ def slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy):
 
     data_grid = np.meshgrid(idxx,idxy)
     s_den = {}
-    s_maxcur = {}
-    s_maxgrd = {}
+    s_max = {}
     sw=0
     # find index in the range
     # according to the analyse, picking layers who are most polular
-    for ilayer in xrange(4,10):#xrange(layers):
+    for ilayer in xrange(1,14):#xrange(layers):
         cur_ceiling = floor + l_step*(ilayer+1)
         cur_floor = floor + l_step*ilayer
         '''
@@ -192,7 +187,7 @@ def slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy):
         layerlargex = np.floor(layerpcx_shift*100)
         layerlargey = np.floor(layerpcy_shift*100)
         large_layerpc = np.vstack((layerlargex,layerlargey,layer[ilayer][2]))
-        grid = np.zeros((3,len(idxy),len(idxx)))
+        grid = np.zeros((2,len(idxy),len(idxx)))
         # using parallel computing to boost up
         #grid = Parallel(n_jobs=num_cores)(delayed(constructing_grid)(idxx,idxy,grid,large_layerpc))
         #pool = Pool()
@@ -210,27 +205,22 @@ def slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy):
 
         '''
 
-        grid = constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc)
+        grid = constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor)
         s_den[ilayer] = grid[0]
-        s_maxcur[ilayer] = grid[1]
-        s_maxgrd[ilayer] = grid[2]
+        s_max[ilayer] = grid[1]
 
     arrays_den = [s_den[x] for x in layer.keys()]
-    arrays_maxcur = [s_maxcur[y] for y in layer.keys()]
-    arrays_maxgrd = [s_maxgrd[y] for y in layer.keys()]
+    arrays_max = [s_max[y] for y in layer.keys()]
     scene_den = np.stack(arrays_den, axis=0)
-    scene_maxcur = np.stack(arrays_maxcur, axis=0)
-    scene_maxgrd = np.stack(arrays_maxgrd, axis=0)
+    scene_max = np.stack(arrays_max, axis=0)
 
-    np.save('../../data/ch13/4-9/den/picture_%06d.npy'%(imagenum),scene_den)
-    np.save('../../data/ch13/4-9/maxcur/picture_%06d.npy'%(imagenum),scene_maxcur)
-    np.save('../../data/ch13/4-9/maxgrd/picture_%06d.npy'%(imagenum),scene_maxgrd)
+    np.save('../../data/ch13/den/images/picture_%06d.npy'%(imagenum),scene_den)
+    np.save('../../data/ch13/max/images/picture_%06d.npy'%(imagenum),scene_max)
     # plot 2d to show box and data
     '''
-    for kk in layer.keys():
-        plot_2d_pc_bbox(scene_den[kk-4], xmin, ymin, xmax, ymax, kk, 'den')
-        plot_2d_pc_bbox(scene_maxcur[kk-4], xmin, ymin, xmax, ymax, kk, 'maxcur')
-        plot_2d_pc_bbox(scene_maxgrd[kk-4], xmin, ymin, xmax, ymax, kk, 'maxgrd')
+    for kk in layer.keys()-1:
+        plot_3d_pc_bbox(scene_den[kk], xmin, ymin, xmax, ymax)
+        plot_2d_pc_bbox(scene_max[kk], xmin, ymin, xmax, ymax)
     '''
     return grid
 
@@ -246,14 +236,13 @@ if __name__ == '__main__':
     for imagenum in xrange(1,1450):#xrange(data['depths'].shape[0]+1):#size(depths,3):
         #if np.where(np.array([88, 179, 368, 390, 650])==imagenum)[0].size != 0:
         #    continue
+        print 'now at image: %d' % (imagenum)
         start_time = time.time()
         # bed=157, chair=5, table=19, sofa=83, toilet=124
         try:
             box_pc = sio.loadmat('alignData/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by ../seeAlignment_pc_3dBox.m
         except:
             continue
-        print 'now at image: %d' % (imagenum)
-        print 'count: %d' %(count)
         #points3d = points3d'
         pc = box_pc['points3d']; clss=box_pc['clss'][0]
         # change bbox to y,x,z
@@ -280,13 +269,10 @@ if __name__ == '__main__':
         xmin, ymin, xmax, ymax = rescale_box(xmin, ymin, xmax, ymax, pc, idxx, idxy)
 
         #slicedto2D    
-        grid = slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy)
-        '''
+        #grid = slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax)
         for k in xrange(len(clss)):
             fid = open('../../data/ch13/label_box_chair/picture_%06d.txt'%(imagenum),'w')
             if str(clss[k][0]) == 'chair':
                 fid.write('(%d, %d) - (%d, %d) - (%s)'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
             fid.close()
-        '''
         print 'time: %.2f s' % (time.time()-start_time)
-        count+=1

@@ -1,5 +1,5 @@
 function [gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections, count] = ...
-    evaluate_detections(bboxes, confidences, image_ids, label_path, draw, target_class)
+    evaluate_detections(bboxes, confidences, image_ids, label_path, draw, target_class, IOU)
 % 'bboxes' is Nx4, N is the number of non-overlapping detections, and each
 % row is [x_min, y_min, x_max, y_max]
 % 'confidences' is the Nx1 (final cascade node) confidence of each
@@ -112,7 +112,7 @@ for d=1:nd
     end
     
     % assign detection as true positive/don't care/false positive
-    if ovmax >= 0.3 % 0.3
+    if ovmax >= IOU % 0.3
         if ~gt_isclaimed(jmax)
             tp(d)=1;            % true positive
             gt_isclaimed(jmax)=true;
