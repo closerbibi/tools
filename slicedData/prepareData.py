@@ -172,7 +172,7 @@ def slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy):
     sw=0
     # find index in the range
     # according to the analyse, picking layers who are most polular
-    for ilayer in xrange(4,10):#xrange(layers):
+    for ilayer in xrange(3,9):#xrange(layers):
         cur_ceiling = floor + l_step*(ilayer+1)
         cur_floor = floor + l_step*ilayer
         '''
@@ -222,9 +222,9 @@ def slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy):
     scene_maxcur = np.stack(arrays_maxcur, axis=0)
     scene_maxgrd = np.stack(arrays_maxgrd, axis=0)
 
-    np.save('../../data/ch13/4-9/den/picture_%06d.npy'%(imagenum),scene_den)
-    np.save('../../data/ch13/4-9/maxcur/picture_%06d.npy'%(imagenum),scene_maxcur)
-    np.save('../../data/ch13/4-9/maxgrd/picture_%06d.npy'%(imagenum),scene_maxgrd)
+    np.save('../../data/3-8/den/picture_%06d.npy'%(imagenum),scene_den)
+    np.save('../../data/3-8/maxcur/picture_%06d.npy'%(imagenum),scene_maxcur)
+    np.save('../../data/3-8/maxgrd/picture_%06d.npy'%(imagenum),scene_maxgrd)
     # plot 2d to show box and data
     '''
     for kk in layer.keys():
@@ -243,17 +243,15 @@ if __name__ == '__main__':
 
     count=1;
 
+    start_time = time.time()
     for imagenum in xrange(1,1450):#xrange(data['depths'].shape[0]+1):#size(depths,3):
         #if np.where(np.array([88, 179, 368, 390, 650])==imagenum)[0].size != 0:
         #    continue
-        start_time = time.time()
         # bed=157, chair=5, table=19, sofa=83, toilet=124
         try:
             box_pc = sio.loadmat('alignData/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by ../seeAlignment_pc_3dBox.m
         except:
             continue
-        print 'now at image: %d' % (imagenum)
-        print 'count: %d' %(count)
         #points3d = points3d'
         pc = box_pc['points3d']; clss=box_pc['clss'][0]
         # change bbox to y,x,z
@@ -263,15 +261,16 @@ if __name__ == '__main__':
         # change pc to y,x,z
         #pc = pc[[1,0,2],:]
         #normals = sio.loadmat('./normalAndpc/normalAndpc%06d.mat'%(imagenum))['normals']
-        pooling = 0
 
-        if np.where(clss=='chair')[0].size == 0:
-            continue
+        #if np.where(clss=='chair')[0].size == 0:
+        #    continue
+        print 'now at image: %d' % (imagenum)
+        print 'count: %d' %(count)
         # filter for chair
-        cha_fil = np.where(clss=='chair')
-        xmin = xmin[cha_fil]; ymin = ymin[cha_fil]; zmin = zmin[cha_fil]
-        xmax = xmax[cha_fil]; ymax = ymax[cha_fil]; zmax = zmax[cha_fil]
-        clss = clss[cha_fil]
+        #cha_fil = np.where(clss=='chair')
+        #xmin = xmin[cha_fil]; ymin = ymin[cha_fil]; zmin = zmin[cha_fil]
+        #xmax = xmax[cha_fil]; ymax = ymax[cha_fil]; zmax = zmax[cha_fil]
+        #clss = clss[cha_fil]
 
         # rescale pc
         idxx, idxy = rescale_pc(pc)
@@ -281,12 +280,13 @@ if __name__ == '__main__':
 
         #slicedto2D    
         grid = slicedto2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy)
-        '''
+        fid = open('../../data/label_5_rcnn/picture_%06d.txt'%(imagenum),'w')
         for k in xrange(len(clss)):
-            fid = open('../../data/ch13/label_box_chair/picture_%06d.txt'%(imagenum),'w')
-            if str(clss[k][0]) == 'chair':
-                fid.write('(%d, %d) - (%d, %d) - (%s)'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
-            fid.close()
-        '''
-        print 'time: %.2f s' % (time.time()-start_time)
+            fid.write('(%d, %d) - (%d, %d) - (%s)\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
+        fid.close()
+        fid = open('../../data/label_5_clsfy/picture_%06d.txt'%(imagenum),'w')
+        for k in xrange(len(clss)):
+            fid.write('%d %d %d %d %s\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
+        fid.close()
         count+=1
+    print 'time: %.2f s' % (time.time()-start_time)
