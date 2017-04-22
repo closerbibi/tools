@@ -51,11 +51,19 @@ while ~feof(fid)
    count = count +1;
 end
 
+count =  count -1;
+
 fclose(fid);
+
+% assign detections to ground truth objects
+nd=length(confidences);
+tp=zeros(nd,1);
+fp=zeros(nd,1);
+duplicate_detections = zeros(nd,1);
 try
     gt_ids = gt_info{1,5}; % string
 catch
-    gt_ids=[]; gt_bboxes=[]; gt_isclaimed=[]; tp=[]; fp=[]; duplicate_detections=[];
+    gt_ids=[]; gt_bboxes=[]; gt_isclaimed=[]; fp=ones(nd,1); duplicate_detections=[];
     return
 end    
 
@@ -74,11 +82,11 @@ npos = size(gt_ids,1); %total number of true positives.
 image_ids= image_ids(si);
 bboxes = bboxes(si,:);
 
-% assign detections to ground truth objects
-nd=length(confidences);
-tp=zeros(nd,1);
-fp=zeros(nd,1);
-duplicate_detections = zeros(nd,1);
+% assign detections to ground truth objects, move ahead
+%nd=length(confidences);
+%tp=zeros(nd,1);
+%fp=zeros(nd,1);
+%duplicate_detections = zeros(nd,1);
 tic;
 for d=1:nd
     % display progress

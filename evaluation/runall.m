@@ -1,24 +1,25 @@
-target_classes = {'chair'};%,'table','sofa','bed','toilet'}
-for kkk = 1%:5
+target_classes = {'chair','table','sofa','bed','toilet'};
+all_ap = 0;
+for kkk = 1:5
     target_class = target_classes{kkk};
     % test
     %fpath = sprintf('../../results/test/comp4-27463_det_test_%s.txt',target_class);
     % train
-    filename = 'chair_maxgrd_320000';
+    filename = sprintf('%s_rgb-lr0005-g05-sz3w_50w',target_class);
     IOU = 0.3;
     type = '';
-    fpath = sprintf('../../faster-rcnn_13_channel%s/results/train/%s.txt',type,filename);
-    label_parent_dir = '../../faster-rcnn_13_channel/data/DIRE/Annotations';
+    fpath = sprintf('../../faster-rcnn_hha/results/train/%s.txt',filename);
+    label_parent_dir = sprintf('../../faster-rcnn_hha/data/DIRE/Annotations');
     gt_file_list = dir(label_parent_dir);
     
     [bboxes, confidences, image_ids] = fetch_result(fpath);
 %     save('rcnn_result.mat','bboxes','confidences','image_ids')
     
 %     %% trim low confidence
-%     target_id = find(confidences>0.2);
-%     bboxes = bboxes(target_id);
-%     confidences = confidences(target_id);
-%     image_ids = image_ids(target_id);
+%    target_id = find(confidences>0.6);
+%    bboxes = bboxes(target_id);
+%    confidences = confidences(target_id);
+%    image_ids = image_ids(target_id);
     %%
     unique_image = unique(image_ids);
 
@@ -28,25 +29,31 @@ for kkk = 1%:5
         label_path = fullfile(label_parent_dir,sprintf('picture_%06d.txt',unique_image(i)));
         [gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections, obj_count] = ...
             evaluate_detections(bboxes(ids,:), confidences(ids,:), image_ids(ids,:), ...
-            label_path, 0, target_class, IOU);
-%         all_tp = [all_tp;tp];
-%         all_fp = [all_fp;fp];
-%         all_box_num = all_box_num + length(tp);
-%         all_gt_box_num = all_gt_box_num + obj_count;
+            label_path, 0, target_class, IOU); % 0: don't draw now
+        all_tp = [all_tp;tp];
+        all_fp = [all_fp;fp];
+        all_box_num = all_box_num + length(tp);
+        all_gt_box_num = all_gt_box_num + obj_count;
         
-        con_idx=find(confidences(ids,:)>0.0);
+%         con_idx=find(confidences(ids,:)>0.2);
 %         if ~isempty(tp)
-            all_tp = [all_tp;tp(con_idx)];
-            all_fp = [all_fp;fp(con_idx)];
-            all_box_num = all_box_num + length(tp(con_idx));
-            all_gt_box_num = all_gt_box_num + obj_count;
+%             all_tp = [all_tp;tp(con_idx)];
+%             all_fp = [all_fp;fp(con_idx)];
+%             all_box_num = all_box_num + length(tp(con_idx));
+%             all_gt_box_num = all_gt_box_num + obj_count;
+%             confidences = confidences(con_idx);
 %         end
     end
     
+    %con_idx=find(confidences>0.6);
+    %all_tp = all_tp(con_idx);
+    %all_fp = all_fp(con_idx);
+    %confidences = confidences(con_idx);
+ 
     [prec, rec, ap, cum_tp, cum_fp]=compute_cu_pr(all_tp,all_fp,all_gt_box_num,confidences);
-    draw(prec, rec, ap, cum_fp, filename,IOU)
+    draw(prec, rec, ap, cum_fp, filename,IOU,target_class)
     
-    
+    all_ap = all_ap+ap;
     disp(target_class)
     precision=sum(all_tp)/all_box_num;
     disp(sprintf('precision: %d/%d = %.01f%% \n',sum(all_tp),all_box_num,precision*100));
@@ -54,3 +61,5 @@ for kkk = 1%:5
     recall=sum(all_tp)/all_gt_box_num;
     disp(sprintf('recall: %d/%d = %.01f%% \n',sum(all_tp),all_gt_box_num,recall*100));
 end
+
+mAP = all_ap/length(target_classes)

@@ -95,7 +95,7 @@ def rescale_box(xmin, ymin, xmax, ymax, pc, idxx, idxy):
         if ymax[kk] >= np.nanmax(idxy):
             ymax[kk] = np.nanmax(idxy)-1
     return xmin, ymin, xmax, ymax
-'''
+
 def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,largexy,img_idx):
 
     ### color image or hha image, both are (2,1,0)
@@ -124,6 +124,7 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,largexy,img_idx):
                 grid[0][rviy][ix] = disparity[hmap,wmap]
                 grid[1][rviy][ix] = height[hmap,wmap]
                 grid[2][rviy][ix] = angle[hmap,wmap]
+                pdb.set_trace()
             else:
                 grid[0][rviy][ix] = 0 
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
@@ -147,6 +148,7 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
 
     ## sorting array by x
     lpc_id = lpc_id[:,~np.isnan(lpc_id[0])]
+    pdb.set_trace()
     lpc_trans = np.transpose(lpc_id,(1,0))
     lpc_x_sort = lpc_trans[lpc_trans[:, 0].argsort()]
     lpc_x_sort = np.transpose(lpc_x_sort,(1,0))
@@ -162,8 +164,9 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
             # channel 2: angle
             if len(xy_eligible) > 0:
                 # then find the position of max z to complete the map, bv can only see the highest point
-                original_idx = xy_eligible[np.argmax(lpc_x_sort[2,x_loc][0,xy_eligible])]
-                location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
+                original_idx = xy_eligible[np.argmax(lpc_x_sort[2,xy_eligible])]
+                pdb.set_trace()
+                location = lpc_x_sort[3, xy_eligible[np.argmax(lpc_x_sort[2,xy_eligible])]].astype(int)
                 hh = height.shape[0]; ww = height.shape[1];
                 wmap = int(np.floor(location/hh))
                 hmap = (location%hh)-1
@@ -183,8 +186,9 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
             #    grid[1][rviy][ix] = layermax
             #    grid[2][rviy][ix] = layermax
 
+    pdb.set_trace()
     return grid
-
+'''
 
 def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
 
