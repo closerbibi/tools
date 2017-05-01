@@ -7,13 +7,14 @@ from PIL import Image
 import pylab
 import matplotlib.cm as cm
 import numpy as np
+import cv2
 
-resultpath = '../results/train/comp4-30047_det_train_chair.txt' # train
+resultpath = '../faster-rcnn_hha/results/train/comp4-14720_det_train_chair.txt' # train
 #resultpath = '../results/test/comp4-27463_det_test_toilet.txt'
-gt_path = '../data/DIRE/Annotations/'
-sceneimgpath = '../../bin/faster-rcnn/SUNRGBD/kv1/NYUdata/'
+gt_path = '../faster-rcnn_hha/data/DIRE/Annotations/'
+sceneimgpath = '../data/NYUdata/'
 #layerimgpath = '/home/closerbibi/bin/faster-rcnn/data/DIRE/ImagesNoRankPooling/'
-layerimgpath = '../../bin/faster-rcnn/SUNRGBD/SUNRGBDtoolbox/SUNRGBDtoolbox/slicedData/picture_forPooling/'
+layerimgpath = '../bin/faster-rcnn/SUNRGBD/SUNRGBDtoolbox/SUNRGBDtoolbox/slicedData/picture_forPooling/'
 #layerimgpath = '/home/closerbibi/bin/faster-rcnn/SUNRGBD/SUNRGBDtoolbox/SUNRGBDtoolbox/slicedData/picture_forPooling/'
 pre_num = 0
 #keys=sci.loadmat('/home/closerbibi/bin/faster-rcnn/data/DIRE/imgIDmatch.mat')['keySet']
@@ -29,12 +30,13 @@ result: using new index.
 with open(resultpath) as f:
     for line in f:
         print line
-        #if float(line.split(' ')[1]) < 0.8:
+        #if float(line.split(' ')[1]) < 0.99:
         #    continue
         newindex = int(line.split('_')[1].split(' ')[0])
         ###trueindex = keys[0][newindex-1]
         ttt = line.split(' ')[0].split('_')
         gtfilename = gt_path + ttt[0]+'_'+ttt[1] + '.txt'
+        pdb.set_trace()
         if newindex == pre_num:
             #continue # just wanna see the gt box and the scene, skip the prediction result
             #continue
@@ -83,7 +85,8 @@ with open(resultpath) as f:
 
             # show current image(layer and scene)
             sceneimgname = sceneimgpath + 'NYU%04d' % (newindex) + '/image/' + 'NYU%04d.jpg' % (newindex)
-            sceneimg = mpimg.imread(sceneimgname)
+            #sceneimg = mpimg.imread(sceneimgname)
+            sceneimg = cv2.imread(sceneimgname)
 #            fig1 = pylab.figure()
             plt.imshow(sceneimg)
             plt.draw()
@@ -132,12 +135,4 @@ with open(resultpath) as f:
             #plt.gca().invert_yaxis()
             plt.show(block=False)
             pre_num = newindex
-            '''
-            for n, fname in enumerate((sceneimgname, layerimg)):
-                image=Image.open(fname).convert("L")
-                arr=np.asarray(image)
-                fig.add_subplot(2, 1, n)  # this line outputs images on top of each other
-                # f.add_subplot(1, 2, n)  # this line outputs images side-by-side
-                pylab.imshow(arr,cmap=cm.Greys_r)
-            '''
 

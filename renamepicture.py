@@ -1,11 +1,14 @@
 import os
 import pdb
 
-path = '/home/closerbibi/bin/faster-rcnn/data/DIRE/Annotations';
+typeimg = 'hha'
+formatimg = 'png'
+path = '/home/closerbibi/workspace/data/%sbv/projecting_%s_5001'%(typeimg, formatimg);
 for filename in os.listdir(path):
-    if filename.startswith("picture_"):
-        wrongnum = filename.spilt('_')[1].split('.')[0]
-        rightnum = ((int(wrongnum)-1)/25)+1
-        rightname = 'picture_%06d.mat' % rightnum
-        os.rename(filename, rightname)
-        pdb.set_trace()
+    if filename.startswith("picture"):
+        wrongnum = filename.split('_')[1].split('.')[0]
+        rightnum = int(wrongnum)+5000
+        rightname = 'img_%04d.png' % rightnum
+        oldname = '/home/closerbibi/workspace/data/%sbv/projecting_%s_5001/%s' %(typeimg, formatimg, filename)
+        newname = '/home/closerbibi/workspace/data/%sbv/projecting_%s_5001/%s' %(typeimg, formatimg, rightname)
+        os.rename(oldname, newname)

@@ -55,6 +55,46 @@ def constructing_grid(max_idxy,ix,iy,grid,large_layerpc):
         grid[1][rviy][ix] = np.nanmax(large_layerpc[2][location])
     return grid
 '''
+'''
+## very slow, pixel by pixel version
+def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,largexy,img_idx):
+
+    ### color image or hha image, both are (2,1,0)
+    #hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
+    #img = cv2.imread(hha_name)
+    color_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
+    img = cv2.imread(color_name)
+    disparity = img[:,:,2] # hha: disparity
+    height = img[:,:,1] # hha: height
+    angle = img[:,:,0] # hha: angle
+    for ix in idxx:
+        for iy in idxy:
+            rviy = np.nanmax(idxy) - iy
+            # location of bv
+            xy_eligible = (largexy[0].astype(int)==ix)*(largexy[1].astype(int)==iy) # "*" means binary operator "and"~
+            xy_eligible = np.where(xy_eligible==True)[0]
+            # channel 0: disparity
+            # channel 1: height
+            # channel 2: angle
+            if len(xy_eligible) > 0:
+                # then find the max z position to complete the map, bv can only see the highest point
+                location = xy_eligible[np.argmax(pc[2][xy_eligible])]
+                hh = height.shape[0]; ww = height.shape[1];
+                wmap = int(np.floor(location/hh))
+                hmap = (location%hh)-1
+                grid[0][rviy][ix] = disparity[hmap,wmap]
+                grid[1][rviy][ix] = height[hmap,wmap]
+                grid[2][rviy][ix] = angle[hmap,wmap]
+            else:
+                grid[0][rviy][ix] = 0 
+                grid[1][rviy][ix] = 0 #np.nanmin(height)
+                grid[2][rviy][ix] = 0 
+                                                                                                                                                                                                     
+        pdb.set_trace()
+    return grid
+
+
+'''
 def normalize_data():
     print 'iamempty'
 
@@ -95,45 +135,7 @@ def rescale_box(xmin, ymin, xmax, ymax, pc, idxx, idxy):
         if ymax[kk] >= np.nanmax(idxy):
             ymax[kk] = np.nanmax(idxy)-1
     return xmin, ymin, xmax, ymax
-'''
-def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,largexy,img_idx):
 
-    ### color image or hha image, both are (2,1,0)
-    #hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
-    #img = cv2.imread(hha_name)
-    color_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
-    img = cv2.imread(color_name)
-    disparity = img[:,:,2] # hha: disparity
-    height = img[:,:,1] # hha: height
-    angle = img[:,:,0] # hha: angle
-    for ix in idxx:
-        for iy in idxy:
-            rviy = np.nanmax(idxy) - iy
-            # location of bv
-            xy_eligible = (largexy[0].astype(int)==ix)*(largexy[1].astype(int)==iy) # "*" means binary operator "and"~
-            xy_eligible = np.where(xy_eligible==True)[0]
-            # channel 0: disparity
-            # channel 1: height
-            # channel 2: angle
-            if len(xy_eligible) > 0:
-                # then find the max z position to complete the map, bv can only see the highest point
-                location = xy_eligible[np.argmax(pc[2][xy_eligible])]
-                hh = height.shape[0]; ww = height.shape[1];
-                wmap = int(np.floor(location/hh))
-                hmap = (location%hh)-1
-                grid[0][rviy][ix] = disparity[hmap,wmap]
-                grid[1][rviy][ix] = height[hmap,wmap]
-                grid[2][rviy][ix] = angle[hmap,wmap]
-            else:
-                grid[0][rviy][ix] = 0 
-                grid[1][rviy][ix] = 0 #np.nanmin(height)
-                grid[2][rviy][ix] = 0 
-                                                                                                                                                                                                     
-        pdb.set_trace()
-    return grid
-
-
-'''
 def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
 
     ### color image or hha image, both are (2,1,0)
@@ -175,37 +177,49 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
                 grid[2][rviy][ix] = 0
 
-            #if largexy.shape[1] == 0:
-            #    grid[1][rviy][ix] = cur_floor #np.min(pc[2])
-            #    grid[2][rviy][ix] = np.nanmin(pc[2])
-            #else:
-            #    layermax = np.nanmax(largexy[2][location])
-            #    grid[1][rviy][ix] = layermax
-            #    grid[2][rviy][ix] = layermax
-
     return grid
 
 
 def constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
 
+    ## sorting array by x
+    lpc_id = large_layerpc[:,~np.isnan(large_layerpc[0])]
+    lpc_trans = np.transpose(lpc_id,(1,0))
+    lpc_x_sort = lpc_trans[lpc_trans[:, 0].argsort()]
+    lpc_x_sort = np.transpose(lpc_x_sort,(1,0))
+
     for ix in idxx:
+        x_loc = np.where(lpc_x_sort[0].astype(int)==ix)
         for iy in idxy:
             rviy = np.nanmax(idxy) - iy
+            # location of bv
+            xy_eligible = np.where(lpc_x_sort[1][x_loc].astype(int)==iy)[0]
+
+
             # compute density: channel 0
-            location = (large_layerpc[0]==ix)*(large_layerpc[1]==iy)
             grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
 
             # find max: channel 1
-            if large_layerpc.shape[1] == 0:
-                grid[1][rviy][ix] = cur_floor #np.min(pc[2])
-                grid[2][rviy][ix] = np.nanmin(pc[2])
-            elif large_layerpc[2][location].shape[0]==0:   # if empty, giving lowest value among all pc
-                grid[1][rviy][ix] = np.nanmin(large_layerpc[2]) #np.nanmin(pc[2])
+            if large_layerpc.shape[1] == 0 or len(xy_eligible) == 0: #large_layerpc[2][location].shape[0] == 0
+                grid[1][rviy][ix] = cur_floor #np.min(pc[2])  # if empty, giving lowest value among all pc
                 grid[2][rviy][ix] = np.nanmin(pc[2])
             else:
+                # then find the position of max z to complete the map, bv can only see the highest point
+                pdb.set_trace()
+                original_idx = xy_eligible[np.argmax(lpc_x_sort[2,x_loc][0,xy_eligible])]
+                location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
                 layermax = np.nanmax(large_layerpc[2][location])
                 grid[1][rviy][ix] = layermax
                 grid[2][rviy][ix] = layermax
+                '''
+                hh = height.shape[0]; ww = height.shape[1];
+                wmap = int(np.floor(location/hh))
+                hmap = (location%hh)-1
+                grid[0][rviy][ix] = disparity[hmap,wmap]
+                grid[1][rviy][ix] = height[hmap,wmap]
+                grid[2][rviy][ix] = angle[hmap,wmap]
+                '''
+    pdb.set_trace()
     return grid
 
 def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax, layer, typedata):
@@ -252,7 +266,7 @@ def to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, m
     floor = np.nanmin(points_height)
 
     # seperate to multiple layers
-    layers = 100 # 25
+    layers = 25 # 25
     l_step = (ceiling - floor)/layers
     layer = {}
 
@@ -271,7 +285,7 @@ def to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, m
             print "grid file done."
         else:
             grid = constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx)
-            #np.save(grid_file,grid)
+            np.save(grid_file,grid)
         # plot 2d to show box and data
         #for kk in xrange(3):
         #plot_2d_pc_bbox(grid[kk], xmin, ymin, xmax, ymax, kk, 'proj')
@@ -311,7 +325,7 @@ def to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, m
                 arrays_den = [s_den[x] for x in layer.keys()]
                 scene_den = np.stack(arrays_den, axis=0)
 
-                np.save(grid_file,scene_den)
+                #np.save(grid_file,scene_den)
                 # plot 2d to show box and data
                 '''
                 for kk in layer.keys():
@@ -324,7 +338,7 @@ def to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, m
     if method == 'layered':
         # find index in the range
         # according to the analyse, picking layers who are most polular
-        for ilayer in xrange(3,9):#xrange(layers):
+        for ilayer in xrange(layers):#xrange(layers):
             cur_ceiling = floor + l_step*(ilayer+1)
             cur_floor = floor + l_step*ilayer
             '''
@@ -343,24 +357,10 @@ def to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, m
             layerpcy_shift = layer[ilayer][1]-np.nanmin(pc[1])
             layerlargex = np.floor(layerpcx_shift*100)
             layerlargey = np.floor(layerpcy_shift*100)
-            large_layerpc = np.vstack((layerlargex,layerlargey,layer[ilayer][2]))
+            large_layerpc = np.vstack((layerlargex, layerlargey, layer[ilayer][2], range(len(layerlargey))))
             grid = np.zeros((3,len(idxy),len(idxx)))
-            # using parallel computing to boost up
-            #grid = Parallel(n_jobs=num_cores)(delayed(constructing_grid)(idxx,idxy,grid,large_layerpc))
-            #pool = Pool()
-            #inparam = {}
-            #inparam['idxx'] = idxx; inparam['idxy'] = idxy; inparam['grid'] = grid; inparam['large_layerpc'] = large_layerpc;
-            #inparam = [idxx,idxy,grid,large_layerpc]
-            #grid = pool.map(constructing_grid, inparam)
-            #constructing_grid(idxx,idxy,grid,large_layerpc)
-
-            # max_idxy,ix,iy,grid,large_layerpc
             max_idxy = np.nanmax(idxy)
-            '''
-            for ix in idxx:
-                pool.map(func_star, itertools.izip(itertools.repeat(max_idxy),itertools.repeat(ix),idxy,itertools.repeat(grid),itertools.repeat(large_layerpc)))
 
-            '''
 
             grid = constructing_grid(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc)
             s_den[ilayer] = grid[0]
@@ -374,9 +374,9 @@ def to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, m
             scene_maxcur = np.stack(arrays_maxcur, axis=0)
             scene_maxgrd = np.stack(arrays_maxgrd, axis=0)
 
-            np.save('../../data/3-8/den/picture_%06d.npy'%(imagenum),scene_den)
-            np.save('../../data/3-8/maxcur/picture_%06d.npy'%(imagenum),scene_maxcur)
-            np.save('../../data/3-8/maxgrd/picture_%06d.npy'%(imagenum),scene_maxgrd)
+            #np.save('../../data/3-8/den/picture_%06d.npy'%(imagenum),scene_den)
+            #np.save('../../data/3-8/maxcur/picture_%06d.npy'%(imagenum),scene_maxcur)
+            #np.save('../../data/3-8/maxgrd/picture_%06d.npy'%(imagenum),scene_maxgrd)
             # plot 2d to show box and data
             '''
             for kk in layer.keys():
@@ -401,7 +401,7 @@ if __name__ == '__main__':
         #    continue
         # bed=157, chair=5, table=19, sofa=83, toilet=124
         try:
-            box_pc = sio.loadmat('alignData_with_nan/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by ../seeAlignment_pc_3dBox.m
+            box_pc = sio.loadmat('alignData_with_nan/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by bin.....SUN3Dtoolbox/generate_pc_3dBox.m
         except:
             continue
         #points3d = points3d'
@@ -432,17 +432,18 @@ if __name__ == '__main__':
 
         #reduct dimension to 2D    
         st1 = time.time()
-        to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, 'projecting', imagenum)
+        #to2D(pc, imagenum, xmin, ymin, xmax, ymax, zmin, zmax, idxx, idxy, lpc_id, 'layered', imagenum)
         print time.time()-st1
         '''
         fid = open('../../data/label_5_rcnn/picture_%06d.txt'%(imagenum),'w')
         for k in xrange(len(clss)):
             fid.write('(%d, %d) - (%d, %d) - (%s)\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
         fid.close()
-        fid = open('../../data/label_5_clsfy/picture_%06d.txt'%(imagenum),'w')
+        '''
+        fid = open('../../data/label_gupta/picture_%06d.txt'%(imagenum),'w')
         for k in xrange(len(clss)):
             fid.write('%d %d %d %d %s\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
         fid.close()
-        '''
+        
         count+=1
     print 'time: %.2f s' % (time.time()-start_time)

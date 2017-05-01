@@ -20,7 +20,7 @@ def loadfile(filename):
                 except:
                     return iter_dict
             entry = {}
-            set_index = 6
+            set_index = 5
             iteration = line.split(' ')[set_index].split(',')[0] #5-->6
             string = line.split(' ')[set_index+1] #6-->7
             print iteration
@@ -37,17 +37,17 @@ def loadfile(filename):
                 print 'value error'
             line = next(infile)  
 
-
-logname = '250000_100000' # remember to change this
-path = '../faster-rcnn_13_channel/logfile/%s.log' % logname
-iter_dict = loadfile(path)
-iter_dict = collections.OrderedDict(sorted(iter_dict.items()))
-fig = plt.figure()
-#plt.bar(2000*np.array(range(len(iter_dict.keys()[0:-1:50]))), iter_dict.values()[0:-1:50], align='center')
-num = 20
-plt.plot(iter_dict.keys()[0:-1:20], iter_dict.values()[0:-1:20])
-#plt.xticks(range(len(iter_dict.keys()[0:-1:50])), iter_dict.keys()[0:-1:50])
-plt.ylabel('loss')
-plt.xlabel('iteration')
-fig.savefig('loss_%s.png'% logname)
-#fig.savefig('~/Dropbox/schoolprint/lab/meeting/meeting19092016/loss_lrdot05.png')
+if __name__ == '__main__':
+    logname = 'train-vgg-hha.log' # remember to change this
+    path = '%s' % logname
+    iter_dict = loadfile(path)
+    iter_dict = collections.OrderedDict(sorted(iter_dict.items()))
+    fig = plt.figure()
+    #plt.bar(2000*np.array(range(len(iter_dict.keys()[0:-1:50]))), iter_dict.values()[0:-1:50], align='center')
+    num = 20
+    plt.plot(iter_dict.keys()[0:-1:20], iter_dict.values()[0:-1:20])
+    #plt.xticks(range(len(iter_dict.keys()[0:-1:50])), iter_dict.keys()[0:-1:50])
+    plt.ylabel('loss')
+    plt.xlabel('iteration')
+    fig.savefig('loss_%s.png'% logname)
+    #fig.savefig('~/Dropbox/schoolprint/lab/meeting/meeting19092016/loss_lrdot05.png')
