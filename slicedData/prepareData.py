@@ -37,7 +37,7 @@ def constructing_grid_multi(max_idxy,ix,iy,grid,large_layerpc):
     return grid
 
 def func_star(a_b):
-    """Convert `f([1,2])` to `f(1,2)` call."""
+    # Convert `f([1,2])` to `f(1,2)` call.
     return constructing_grid(*a_b)
 
 def constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
@@ -184,7 +184,7 @@ def rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagen
             ymax[kk] = np.nanmax(idxy)-1
     return xmin, ymin, xmax, ymax, zmin, zmax, clss
 
-def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
+def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
 
     ### color image or hha image, both are (2,1,0)
     hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
@@ -232,7 +232,7 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
 
     return grid
 
-def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx):
+def constructing_grid_pj(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
 
     ### color image or hha image, both are (2,1,0)
     #hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
@@ -363,7 +363,7 @@ def plot_3d(pc, xmin, xmax, ymin, ymax, zmin, zmax):
     ax.set_zlabel('Z Label')
     plt.show()
 
-def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx):
+def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box):
     points_height = pc[2,:]
     ceiling = np.nanmax(points_height)
     floor = np.nanmin(points_height)
@@ -383,12 +383,12 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx):
         # rgb
         #grid_file = '../../data/rgbbv/projecting/picture_%06d.npy'%(imagenum)
         # hha
-        grid_file = '../../data/hhabv/projecting_noroof/picture_%06d.npy'%(imagenum)
+        grid_file = '../../data/hhabv/projecting_noroof_all/picture_%06d.npy'%(imagenum)
         grid = np.zeros((3,len(idxy),len(idxx)))
         max_idxy = np.nanmax(idxy)
         if not os.path.exists(grid_file):
-            grid = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx)
-            np.save(grid_file,grid)
+            grid = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx)
+            #np.save(grid_file,grid)
         #else:
         #    print "grid file done."
         
@@ -495,7 +495,52 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx):
                 plot_2d_pc_bbox(scene_maxcur[kk-4], xmin, ymin, xmax, ymax, kk, 'maxcur')
                 plot_2d_pc_bbox(scene_maxgrd[kk-4], xmin, ymin, xmax, ymax, kk, 'maxgrd')
             '''
-    #return grid
+    if method == 'hybrid':
+        # construct disparity and height channel first
+        grid = np.zeros((8,len(idxy),len(idxx)))
+        max_idxy = np.nanmax(idxy)
+        grid_file = '../../data/hhabv/projecting_noroof/picture_%06d.npy'%(imagenum)
+        if not os.path.exists(grid_file):
+            grid_3ch = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx)
+        gird[0:3] = grid_3ch[0:3]
+
+        ### color image or hha image, both are (2,1,0)
+        hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
+        img = cv2.imread(hha_name)
+        angle = img[:,:,0] # hha: angle
+
+        ### find index in the range
+        ### according to the analyse, picking layers who are most polular
+        for ilayer in xrange(2,8):#xrange(layers):
+            cur_ceiling = floor + l_step*(ilayer+1)
+            cur_floor = floor + l_step*ilayer
+            ### trim layer without target class (chair only first)
+            ### change to more accurate layer finding
+            #if (cur_ceiling > zmin).all() and (cur_floor < zmax).all():
+            #    dict_box[ilayer] = dict_box[ilayer] + 1
+            idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
+            layer[ilayer] = pc[:,idx[0]]
+
+            ### show 3d data and bbox corner
+            #plot_3d(layer, xmin, ymin, xmax, ymax, zmin, zmax, layers) 
+            ### making grid
+            layerpcx_shift = layer[ilayer][0]-np.nanmin(pc[0])
+            layerpcy_shift = layer[ilayer][1]-np.nanmin(pc[1])
+            layerlargex = np.floor(layerpcx_shift*100)
+            layerlargey = np.floor(layerpcy_shift*100)
+            large_layerpc = np.vstack((layerlargex, layerlargey, layer[ilayer][2], range(len(layerlargey))))
+            grid_ly = np.zeros((3,len(idxy),len(idxx)))
+            max_idxy = np.nanmax(idxy)
+
+            grid_ly = constructing_grid_ly(max_idxy,idxx,idxy,grid_ly,large_layerpc,cur_floor,pc)
+            s_normal[ilayer] = grid_ly[0]
+
+            arrays_normal = [s_normal[x] for x in layer.keys()]
+            scene_normal = np.stack(arrays_normal, axis=0)
+
+        #np.save('../../data/3-8/bfix/den/picture_%06d.npy'%(imagenum),scene_den)
+        return dict_box
+
 
 if __name__ == '__main__':
 
@@ -511,12 +556,15 @@ if __name__ == '__main__':
     start_time = time.time()
     numbox = []
     newidx = np.array([89,122,146,149,153,159,254,449,725,755,790,936,1036,1038,1273,1427])
+    dict_box = {k: 0 for k in xrange(25)}
+    #fid_nobox = open('/home/closerbibi/workspace/pytorch/faster-rcnn_19classes/data/DIRE/nobox_image.txt','w')
+    fid_nobox = open('all_cls.txt','w')
     for imagenum in xrange(1,1450):
         #if np.where(np.array([88, 179, 368, 390, 650])==imagenum)[0].size != 0:
         #    continue
         # bed=157, chair=5, table=19, sofa=83, toilet=124
         try:
-            box_pc = sio.loadmat('alignData_with_nan/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by bin.....SUN3Dtoolbox/generate_pc_3dBox.m
+            box_pc = sio.loadmat('alignData_with_nan_19_classes/image%04d/annotation_pc.mat' % (imagenum)); # pc generate by bin.....SUN3Dtoolbox/generate_pc_3dBox.m
             count_mat += 1
         except:
             continue
@@ -549,28 +597,31 @@ if __name__ == '__main__':
             ymin = box_pc['ymin'][0]; ymax=box_pc['ymax'][0]; xmin=box_pc['xmin'][0]; xmax=box_pc['xmax'][0]; zmin=box_pc['zmin'][0]; zmax=box_pc['zmax'][0];
             # rescale box to fit image size
             xmin, ymin, xmax, ymax, zmin, zmax, clss = rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagenum)
+            fid_nobox.write('%d: %s\n'%(imagenum, clss))
             clss[0]
         except:
-            #reduct dimension to 2D    
+            #reduct dimension to 2D
             st1 = time.time()
-            #to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum)
+            #dict_box = to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax, dict_box)
             #print time.time()-st1
             # write bbox file
-            '''
-            fid = open('../../data/label_gupta/picture_%06d.txt'%(imagenum),'w')
-            fid.write('')
-            fid.close()
-            '''
+            #fid = open('../../data/label_19/picture_%06d.txt'%(imagenum),'w')
+            #fid.write('')
+            #fid.close()
+            ### making no box list
             count+=1
             continue
             
         #reduct dimension to 2D    
         st1 = time.time()
-        to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum)
+        #dict_box = to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax, dict_box)
         #print time.time()-st1
-        #fid = open('../../data/label_5_bfix/picture_%06d.txt'%(imagenum),'w')
+        #fid = open('../../data/label_19/picture_%06d.txt'%(imagenum),'w')
         #for k in xrange(len(clss)):
-        #    fid.write('(%d, %d) - (%d, %d) - (%s)\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
+        #    try:
+        #        fid.write('(%d, %d) - (%d, %d) - (%s)\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
+        #    except:
+        #        pdb.set_trace()
         #fid.close()
         '''
         fid = open('../../data/label_gupta/picture_%06d.txt'%(imagenum),'w')
@@ -578,7 +629,6 @@ if __name__ == '__main__':
             fid.write('%d %d %d %d %s\n'%(xmin[k], ymin[k], xmax[k], ymax[k], str(clss[k][0])))
         fid.close()
         '''
-        print "picture_%06d" % (imagenum)
         #numbox.extend([5000+imagenum])
         count_box+=1
     #print 'time: %.2f s' % (time.time()-start_time)
@@ -587,3 +637,4 @@ if __name__ == '__main__':
     #print 'mat file count: '+ str(count_mat)
     #numbox = np.asarray(numbox)
     #np.save('with_box.npy',numbox)
+    fid_nobox.close()
