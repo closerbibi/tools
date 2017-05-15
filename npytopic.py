@@ -6,8 +6,8 @@ import pdb
 typeimg = 'hha'
 formatimg = 'png'
 
-source = '/home/closerbibi/workspace/data/%sbv/projecting' %(typeimg)
-target = '/home/closerbibi/workspace/data/%sbv/projecting_%s'%(typeimg, formatimg)
+source = '/home/closerbibi/workspace/data/%sbv/projecting_noroof_all' %(typeimg)
+target = '/home/closerbibi/workspace/data/%sbv/projecting_noroof_%s_all'%(typeimg, formatimg)
 
 for fname in os.listdir(source):
     grid = np.load(os.path.join(source,fname))

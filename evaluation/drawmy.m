@@ -1,6 +1,6 @@
-function draw(prec, rec, ap, cum_fp, fname, IOU, target_class, result_type, save_name, result_name, filename)
+function draw(prec, rec, ap, cum_fp, fname, IOU, target_class)
 % plot precision/recall
-    h = figure
+    figure
     plot(rec*100,prec*100,'-');
     axis([0 100 0 100])
     grid;
@@ -8,8 +8,6 @@ function draw(prec, rec, ap, cum_fp, fname, IOU, target_class, result_type, save
     ylabel 'precision(%)'
     aa= strsplit(fname,'_');
     title(sprintf('%s %s %s,IOU= %.2f,AP = %.3f %%',aa{1:3},IOU, ap*100));
-    savepath = sprintf('../results/%s/%s/%s/%s.jpg', result_type, save_name, result_name, filename);
-    saveas(h, savepath);
 % % %     if target_class == 'chair'
 % % %         set(12, 'Color', [.988, .988, .988])
 % % %     end

@@ -1,7 +1,7 @@
 import os
 import pdb
 
-typeimg = 'hha'
+typeimg = 'rgb'
 formatimg = 'png'
 path = '/home/closerbibi/workspace/data/%sbv/projecting_%s_5001'%(typeimg, formatimg);
 for filename in os.listdir(path):
