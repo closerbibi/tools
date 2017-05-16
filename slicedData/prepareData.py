@@ -276,7 +276,7 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
     return grid
 
 
-def constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
+def constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc,angle):
 
     ## sorting array by x
     lpc_id = large_layerpc[:,~np.isnan(large_layerpc[0])]
@@ -291,29 +291,16 @@ def constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
             # location of bv
             xy_eligible = np.where(lpc_x_sort[1][x_loc].astype(int)==iy)[0]
 
-            # compute density: channel 0
-            #grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
-            grid[0][rviy][ix] = len(xy_eligible)
-
-            # find max: channel 1
             if large_layerpc.shape[1] == 0 or len(xy_eligible) == 0: #large_layerpc[2][location].shape[0] == 0
-                grid[1][rviy][ix] = cur_floor #np.min(pc[2])  # if empty, giving lowest value among all pc
-                grid[2][rviy][ix] = np.nanmin(pc[2])
+                grid[0][rviy][ix] = 0 
             else:
                 # then find the position of max z to complete the map, bv can only see the highest point
                 original_idx = xy_eligible[np.argmax(lpc_x_sort[2,x_loc][0,xy_eligible])]
                 location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
-                layermax = np.nanmax(large_layerpc[2][location])
-                grid[1][rviy][ix] = layermax
-                grid[2][rviy][ix] = layermax
-                '''
-                hh = height.shape[0]; ww = height.shape[1];
+                hh = angle.shape[0]; ww = angle.shape[1];
                 wmap = int(np.floor(location/hh))
                 hmap = (location%hh)-1
-                grid[0][rviy][ix] = disparity[hmap,wmap]
-                grid[1][rviy][ix] = height[hmap,wmap]
-                grid[2][rviy][ix] = angle[hmap,wmap]
-                '''
+                grid[0][rviy][ix] = angle[hmap, wmap]
     return grid
 
 def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax, layer, typedata):
@@ -377,6 +364,7 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
     s_den = {}
     s_maxcur = {}
     s_maxgrd = {}
+    s_normal = {}
     sw=0
 
     if method == 'projecting':
@@ -454,14 +442,14 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
             if (cur_ceiling > zmax).all() or (cur_floor < zmin).all():
                 continue
             '''
-            idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
-            layer[ilayer] = pc[:,idx[0]]
+            idx = np.where((lpc_id[2,:] > cur_floor) * (lpc_id[2,:] < cur_ceiling))
+            layer[ilayer] = lpc_id[:,idx[0]]
 
             # show 3d data and bbox corner
             #plot_3d(layer, xmin, ymin, xmax, ymax, zmin, zmax, layers) 
             # making grid
-            layerpcx_shift = layer[ilayer][0]-np.nanmin(pc[0])
-            layerpcy_shift = layer[ilayer][1]-np.nanmin(pc[1])
+            layerpcx_shift = layer[ilayer][0]-np.nanmin(lpc_id[0])
+            layerpcy_shift = layer[ilayer][1]-np.nanmin(lpc_id[1])
             layerlargex = np.floor(layerpcx_shift*100)
             layerlargey = np.floor(layerpcy_shift*100)
             large_layerpc = np.vstack((layerlargex, layerlargey, layer[ilayer][2], range(len(layerlargey))))
@@ -469,7 +457,7 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
             max_idxy = np.nanmax(idxy)
 
 
-            grid = constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc)
+            grid = constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc,angle)
             s_den[ilayer] = grid[0]
             s_maxcur[ilayer] = grid[1]
             s_maxgrd[ilayer] = grid[2]
@@ -498,11 +486,14 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
     if method == 'hybrid':
         # construct disparity and height channel first
         grid = np.zeros((8,len(idxy),len(idxx)))
+        grid_3ch = np.zeros((3,len(idxy),len(idxx)))
         max_idxy = np.nanmax(idxy)
         grid_file = '../../data/hhabv/projecting_noroof/picture_%06d.npy'%(imagenum)
         if not os.path.exists(grid_file):
-            grid_3ch = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,pc,lpc_id,img_idx)
-        gird[0:3] = grid_3ch[0:3]
+            grid_3ch = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx)
+        else:
+            grid_3ch = np.load(grid_file)
+        grid[6:8] = grid_3ch[0:2]
 
         ### color image or hha image, both are (2,1,0)
         hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
@@ -511,34 +502,34 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
 
         ### find index in the range
         ### according to the analyse, picking layers who are most polular
-        for ilayer in xrange(2,8):#xrange(layers):
+        start = 2
+        for ilayer in xrange(start, start+6):#xrange(layers):
             cur_ceiling = floor + l_step*(ilayer+1)
             cur_floor = floor + l_step*ilayer
             ### trim layer without target class (chair only first)
             ### change to more accurate layer finding
             #if (cur_ceiling > zmin).all() and (cur_floor < zmax).all():
             #    dict_box[ilayer] = dict_box[ilayer] + 1
-            idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
-            layer[ilayer] = pc[:,idx[0]]
+            idx = np.where((lpc_id[2,:] > cur_floor) * (lpc_id[2,:] < cur_ceiling))
+            layer[ilayer] = lpc_id[:,idx[0]]
 
             ### show 3d data and bbox corner
             #plot_3d(layer, xmin, ymin, xmax, ymax, zmin, zmax, layers) 
             ### making grid
-            layerpcx_shift = layer[ilayer][0]-np.nanmin(pc[0])
-            layerpcy_shift = layer[ilayer][1]-np.nanmin(pc[1])
-            layerlargex = np.floor(layerpcx_shift*100)
-            layerlargey = np.floor(layerpcy_shift*100)
-            large_layerpc = np.vstack((layerlargex, layerlargey, layer[ilayer][2], range(len(layerlargey))))
+            large_layerpc = layer[ilayer]
             grid_ly = np.zeros((3,len(idxy),len(idxx)))
             max_idxy = np.nanmax(idxy)
 
-            grid_ly = constructing_grid_ly(max_idxy,idxx,idxy,grid_ly,large_layerpc,cur_floor,pc)
-            s_normal[ilayer] = grid_ly[0]
+            grid_ly = constructing_grid_ly(max_idxy,idxx,idxy,grid_ly,large_layerpc,cur_floor,pc,angle)
+            grid[ilayer-start] = grid_ly[0]
 
-            arrays_normal = [s_normal[x] for x in layer.keys()]
-            scene_normal = np.stack(arrays_normal, axis=0)
-
-        #np.save('../../data/3-8/bfix/den/picture_%06d.npy'%(imagenum),scene_den)
+        ### debug
+        #for aa in xrange(0,8):
+        #    plt.imshow(grid[aa])
+        #    plt.title(aa)
+        #    plt.colorbar()
+        #    plt.show()
+        np.save('../../data/layer6_disparity_height/picture_%06d.npy'%(imagenum),grid)
         return dict_box
 
 
@@ -597,12 +588,12 @@ if __name__ == '__main__':
             ymin = box_pc['ymin'][0]; ymax=box_pc['ymax'][0]; xmin=box_pc['xmin'][0]; xmax=box_pc['xmax'][0]; zmin=box_pc['zmin'][0]; zmax=box_pc['zmax'][0];
             # rescale box to fit image size
             xmin, ymin, xmax, ymax, zmin, zmax, clss = rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagenum)
-            fid_nobox.write('%d: %s\n'%(imagenum, clss))
+            #fid_nobox.write('%d: %s\n'%(imagenum, clss))
             clss[0]
         except:
             #reduct dimension to 2D
             st1 = time.time()
-            #dict_box = to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax, dict_box)
+            dict_box = to2D(pc, imagenum, idxx, idxy, lpc_id, 'hybrid', imagenum, zmin, zmax, dict_box)
             #print time.time()-st1
             # write bbox file
             #fid = open('../../data/label_19/picture_%06d.txt'%(imagenum),'w')
@@ -614,7 +605,7 @@ if __name__ == '__main__':
             
         #reduct dimension to 2D    
         st1 = time.time()
-        #dict_box = to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax, dict_box)
+        dict_box = to2D(pc, imagenum, idxx, idxy, lpc_id, 'hybrid', imagenum, zmin, zmax, dict_box)
         #print time.time()-st1
         #fid = open('../../data/label_19/picture_%06d.txt'%(imagenum),'w')
         #for k in xrange(len(clss)):
