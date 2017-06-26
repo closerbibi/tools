@@ -23,32 +23,115 @@ import rankpooling as rp
 import cv2
 
 
-def occlusion(lpc_id, cam_center):
-    # create occlusion map
-    occu = np.zeros(np.shape(lpc_id))
-    # loop over each occupied point
-    for i in xrange(len(lpc_id)):
-        # create ray emmit from camera
-        ray = lpc_id[:,i] - cam_center
-        ray /= np.linalg.norm(ray) # normalize, make it vetor
-        # assign passby point to occluded (in pc lpc_id range, and not occupied)
+'''
+def constructing_grid_multi(max_idxy,ix,iy,grid,large_layerpc):
+    rviy = max_idxy - iy
+    # compute density: channel 0
+    location = (large_layerpc[0]==ix)*(large_layerpc[1]==iy)
+    grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
+    # find max: channel 1
+    if grid[0][rviy][ix] == 0:   # if empty, giving lowest value of current layer
+        grid[1][rviy][ix] = np.nanmin(large_layerpc[2])
+    else:
+        grid[1][rviy][ix] = np.nanmax(large_layerpc[2][location])
+    return grid
 
-    print ""
+def func_star(a_b):
+    # Convert `f([1,2])` to `f(1,2)` call.
+    return constructing_grid(*a_b)
+
+def constructing_grid_ly(max_idxy,idxx,idxy,grid,large_layerpc,cur_floor,pc):
+
+    ## sorting array by x
+    lpc_id = large_layerpc[:,~np.isnan(large_layerpc[0])]
+    lpc_trans = np.transpose(lpc_id,(1,0))
+    lpc_x_sort = lpc_trans[lpc_trans[:, 0].argsort()]
+    lpc_x_sort = np.transpose(lpc_x_sort,(1,0))
+
+    for ix in idxx:
+        x_loc = np.where(lpc_x_sort[0].astype(int)==ix)
+        for iy in idxy:
+            rviy = np.nanmax(idxy) - iy
+            # location of bv
+            xy_eligible = np.where(lpc_x_sort[1][x_loc].astype(int)==iy)[0]
+
+
+            # compute density: channel 0
+            grid[0][rviy][ix] = np.sum((large_layerpc[0]==ix)*(large_layerpc[1]==iy))
+
+            # find max: channel 1
+            if large_layerpc.shape[1] == 0 or len(xy_eligible) == 0: #large_layerpc[2][location].shape[0] == 0
+                grid[1][rviy][ix] = cur_floor #np.min(pc[2])  # if empty, giving lowest value among all pc
+                grid[2][rviy][ix] = np.nanmin(pc[2])
+            else:
+                # then find the position of max z to complete the map, bv can only see the highest point
+                original_idx = xy_eligible[np.argmax(lpc_x_sort[2,x_loc][0,xy_eligible])]
+                location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
+                layermax = np.nanmax(large_layerpc[2][location])
+                grid[1][rviy][ix] = layermax
+                grid[2][rviy][ix] = layermax
+                #hh = height.shape[0]; ww = height.shape[1];
+                #wmap = int(np.floor(location/hh))
+                #hmap = (location%hh)-1
+                #grid[0][rviy][ix] = disparity[hmap,wmap]
+                #grid[1][rviy][ix] = height[hmap,wmap]
+                #grid[2][rviy][ix] = angle[hmap,wmap]
+    return grid
+
+## very slow, pixel by pixel version
+def constructing_grid_pj(max_idxy,idxx,idxy,grid,pc,largexy,img_idx):
+
+    ### color image or hha image, both are (2,1,0)
+    #hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
+    #img = cv2.imread(hha_name)
+    color_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
+    img = cv2.imread(color_name)
+    disparity = img[:,:,2] # hha: disparity
+    height = img[:,:,1] # hha: height
+    angle = img[:,:,0] # hha: angle
+    for ix in idxx:
+        for iy in idxy:
+            rviy = np.nanmax(idxy) - iy
+            # location of bv
+            xy_eligible = (largexy[0].astype(int)==ix)*(largexy[1].astype(int)==iy) # "*" means binary operator "and"~
+            xy_eligible = np.where(xy_eligible==True)[0]
+            # channel 0: disparity
+            # channel 1: height
+            # channel 2: angle
+            if len(xy_eligible) > 0:
+                # then find the max z position to complete the map, bv can only see the highest point
+                location = xy_eligible[np.argmax(pc[2][xy_eligible])]
+                hh = height.shape[0]; ww = height.shape[1];
+                wmap = int(np.floor(location/hh))
+                hmap = (location%hh)-1
+                grid[0][rviy][ix] = disparity[hmap,wmap]
+                grid[1][rviy][ix] = height[hmap,wmap]
+                grid[2][rviy][ix] = angle[hmap,wmap]
+            else:
+                grid[0][rviy][ix] = 0 
+                grid[1][rviy][ix] = 0 #np.nanmin(height)
+                grid[2][rviy][ix] = 0 
+                                                                                                                                                                                                     
+    return grid
+
+
+'''
+def normalize_data():
+    print 'iamempty'
+
+
+def compute_mean():
+    print "Hello, I am empty"
 
 def rescale_pc(pc):
     pcx_shift = pc[0]-np.nanmin(pc[0])
     pcy_shift = pc[1]-np.nanmin(pc[1])
-    pcz_shift = pc[2]-np.nanmin(pc[2])
     largex = np.floor(pcx_shift*100)
     largey = np.floor(pcy_shift*100)
-    largez = np.floor(pcz_shift*100)
-    #lpc_id = np.vstack((largex,largey,pc[2],range(len(pc[2]))))
-    # new voxelized z point cloud
-    lpc_id = np.vstack((largex,largey,largez,range(len(pc[2]))))
+    lpc_id = np.vstack((largex,largey,pc[2],range(len(pc[2]))))
     idxx = range(int(np.nanmin(lpc_id[0])),int(np.nanmax(lpc_id[0])+1),1)
     idxy = range(int(np.nanmin(lpc_id[1])),int(np.nanmax(lpc_id[1])+1),1)
-    cam_center = np.array([np.nanmin(pc[0]), np.nanmin(pc[1]), np.nanmin(pc[2])])
-    return idxx,idxy,lpc_id,cam_center
+    return idxx,idxy,lpc_id
 
 
 def rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagenum):
@@ -75,6 +158,10 @@ def rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagen
             evil_list.extend([ii])
 
     if any(np.nanmax(idxy) < a for a in ymin) or any(0 > a for a in ymax) or  any(np.nanmax(idxx) < a for a in xmin) or  any(0 > a for a in xmax):
+        #print 'xmin: %s, picxmax: %s, ymin: %s, picymax: %s' %(xmin, max(idxx), ymin, max(idxy))
+        #print 'xmax: %s, ymax: %s, 0'% (xmax, ymax)
+        #print evil_list
+        #print imagenum
         go_away = np.unique(evil_list)
         xmin = np.delete(xmin, go_away)
         ymin = np.delete(ymin, go_away)
@@ -363,7 +450,7 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
             ### change to more accurate layer finding
             #if (cur_ceiling > zmin).all() and (cur_floor < zmax).all():
             #    dict_box[ilayer] = dict_box[ilayer] + 1
-            idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
+            idx = np.where((lpc_id[2,:] > cur_floor) * (lpc_id[2,:] < cur_ceiling))
             layer[ilayer] = lpc_id[:,idx[0]]
 
             ### show 3d data and bbox corner
@@ -417,7 +504,7 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax, dict_box
             ### change to more accurate layer finding
             #if (cur_ceiling > zmin).all() and (cur_floor < zmax).all():
             #    dict_box[ilayer] = dict_box[ilayer] + 1
-            idx = np.where((pc[2,:] > cur_floor) * (pc[2,:] < cur_ceiling))
+            idx = np.where((lpc_id[2,:] > cur_floor) * (lpc_id[2,:] < cur_ceiling))
             layer[ilayer] = lpc_id[:,idx[0]]
 
             ### show 3d data and bbox corner
