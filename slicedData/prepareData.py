@@ -110,7 +110,7 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
     height = hha[:,:,1] # hha: height, green
     disparity = hha[:,:,2] # hha: disparity, red
     # choose img type
-    img = bgr
+    img = bgr # !!!!!!!!!!!!!!!
 
     ## sorting array by x
     lpc_id = lpc_id[:,~np.isnan(lpc_id[0])]
@@ -118,7 +118,6 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
     lpc_x_sort = lpc_trans[lpc_trans[:, 0].argsort()]
     lpc_x_sort = np.transpose(lpc_x_sort,(1,0))
 
-    hmap = (location%hh)-1;wmap = int(np.floor(location/hh))
     hh = height.shape[0]; ww = height.shape[1];
     for ix in idxx:
         x_loc = np.where(lpc_x_sort[0].astype(int)==ix)
@@ -131,16 +130,23 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
             # channel 2: disparity
             if len(xy_eligible) > 0:
                 # then find the position of max z to complete the map, bv can only see the highest point
-                original_idx = xy_eligible[np.argmax(lpc_x_sort[2,x_loc][0,xy_eligible])]
-                location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
-                if angle[hmap,wmap] < 190: # pruning roof base on angle
-                    grid[0][rviy][ix] = img[:,:,0][hmap,wmap]
-                    grid[1][rviy][ix] = img[:,:,1][hmap,wmap]
-                    grid[2][rviy][ix] = img[:,:,2][hmap,wmap]
-                else:
-                    grid[0][rviy][ix] = 0
-                    grid[1][rviy][ix] = 0
-                    grid[2][rviy][ix] = 0
+                z_lst = lpc_x_sort[2,x_loc][0,xy_eligible]
+                z_lst_argsort = (np.argsort(z_lst))[::-1]# sort=small>large, use[::-1] to large>small                                                                                                        
+                for i in range(len(z_lst_argsort)):
+                    original_idx = xy_eligible[z_lst_argsort[i]]
+                    #original_idx1 = xy_eligible[np.argmax(z_lst)]
+                    location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
+                    #location1 = lpc_x_sort[3,x_loc][0, original_idx1].astype(int)
+                    wmap = int(np.floor(location/hh))
+                    hmap = (location%hh)-1
+                    if angle[hmap,wmap] < 190: # pruning roof base on angle
+                        grid[0][rviy][ix] = img[:,:,0][hmap,wmap]
+                        grid[1][rviy][ix] = img[:,:,1][hmap,wmap]
+                        grid[2][rviy][ix] = img[:,:,2][hmap,wmap]
+                        break
+                    else:
+                        continue
+            
             else:
                 grid[0][rviy][ix] = 0
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
