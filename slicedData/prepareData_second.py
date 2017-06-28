@@ -22,7 +22,17 @@ import itertools
 import rankpooling as rp
 import cv2
 from functools import partial
-
+def second_largest(numbers):
+    count = 0
+    m1 = m2 = float('-inf')
+    for x in numbers:
+        count += 1
+        if x > m2:
+            if x >= m1:
+                m1, m2 = x, m1
+            else:
+                m2 = x
+    return m2 if count >= 2 else None
 
 def occlusion(lpc_id, cam_center):
     # create occlusion map
@@ -102,50 +112,55 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
 
     ### color image or hha image, both are (2,1,0)
     hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
-    hha = cv2.imread(hha_name)
-    bgr_name = '/home/closerbibi/workspace/data/NYUimg_only/NYU%04d.jpg'%(int(img_idx))
-    bgr = cv2.imread(bgr_name)
+    img = cv2.imread(hha_name)
+    #rgb_name = '/home/closerbibi/workspace/data/NYUimg_only/NYU%04d.jpg'%(int(img_idx))
+    #img = cv2.imread(rgb_name)
     #gray_image = cv2.cvtColor(imgrgb, cv2.COLOR_BGR2GRAY)
-    angle = hha[:,:,0] # hha: angle, blue
-    height = hha[:,:,1] # hha: height, green
-    disparity = hha[:,:,2] # hha: disparity, red
-    # choose img type
-    img = bgr
+    disparity = img[:, :, 2] # gray
+    height = img[:,:,1] # hha: height
+    angle = img[:,:,0] # hha: angle
 
     ## sorting array by x
     lpc_id = lpc_id[:,~np.isnan(lpc_id[0])]
     lpc_trans = np.transpose(lpc_id,(1,0))
     lpc_x_sort = lpc_trans[lpc_trans[:, 0].argsort()]
     lpc_x_sort = np.transpose(lpc_x_sort,(1,0))
-
-    hmap = (location%hh)-1;wmap = int(np.floor(location/hh))
     hh = height.shape[0]; ww = height.shape[1];
+
     for ix in idxx:
         x_loc = np.where(lpc_x_sort[0].astype(int)==ix)
         for iy in idxy:
             rviy = np.nanmax(idxy) - iy
             # location of bv
             xy_eligible = np.where(lpc_x_sort[1][x_loc].astype(int)==iy)[0]
-            # channel 0: angle
+            # channel 0: disparity
             # channel 1: height
-            # channel 2: disparity
+            # channel 2: angle
             if len(xy_eligible) > 0:
                 # then find the position of max z to complete the map, bv can only see the highest point
-                original_idx = xy_eligible[np.argmax(lpc_x_sort[2,x_loc][0,xy_eligible])]
-                location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
-                if angle[hmap,wmap] < 190: # pruning roof base on angle
-                    grid[0][rviy][ix] = img[:,:,0][hmap,wmap]
-                    grid[1][rviy][ix] = img[:,:,1][hmap,wmap]
-                    grid[2][rviy][ix] = img[:,:,2][hmap,wmap]
-                else:
-                    grid[0][rviy][ix] = 0
-                    grid[1][rviy][ix] = 0
-                    grid[2][rviy][ix] = 0
+                z_lst = lpc_x_sort[2,x_loc][0,xy_eligible]
+                z_lst_argsort = (np.argsort(z_lst))[::-1]# sort=small>large, use[::-1] to large>small
+                for i in range(len(z_lst_argsort)):
+                    original_idx = xy_eligible[z_lst_argsort[i]]
+                    #original_idx1 = xy_eligible[np.argmax(z_lst)]
+                    location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
+                    #location1 = lpc_x_sort[3,x_loc][0, original_idx1].astype(int)
+                    wmap = int(np.floor(location/hh))
+                    hmap = (location%hh)-1
+                    if angle[hmap,wmap] < 190: # pruning roof base on angle
+                        grid[0][rviy][ix] = angle[hmap,wmap]
+                        grid[1][rviy][ix] = height[hmap,wmap]
+                        grid[2][rviy][ix] = disparity[hmap,wmap]
+                        break
+                    else:
+                        continue
+                    #    grid[0][rviy][ix] = 0
+                    #    grid[1][rviy][ix] = 0
+                    #    grid[2][rviy][ix] = 0
             else:
                 grid[0][rviy][ix] = 0
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
                 grid[2][rviy][ix] = 0
-
     return grid
 
 def constructing_grid_pj(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
@@ -181,9 +196,9 @@ def constructing_grid_pj(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
                 hh = height.shape[0]; ww = height.shape[1];
                 wmap = int(np.floor(location/hh))
                 hmap = (location%hh)-1
-                grid[0][rviy][ix] = angle[hmap,wmap]
+                grid[0][rviy][ix] = disparity[hmap,wmap]
                 grid[1][rviy][ix] = height[hmap,wmap]
-                grid[2][rviy][ix] = disparity[hmap,wmap]
+                grid[2][rviy][ix] = angle[hmap,wmap]
             else:
                 grid[0][rviy][ix] = 0
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
@@ -285,20 +300,21 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax):
 
     if method == 'projecting':
         # rgb
-        grid_file_2ch = '../../data/hhabv/2ch/picture_%06d.npy'%(imagenum)
-        grid_file = '../../data/rgbbv/projecting_noroof_all_jpg/picture_%06d.jpg'%(imagenum)
-        grid_file_pascal = '../../data/rgbbv/projecting_noroof_all_pascal_jpg/%06d.jpg'%(imagenum)
+        #grid_file_2ch = '../../data/hhabv/2ch/picture_%06d.npy'%(imagenum)
+        grid_file_hhagray = '../../data/hhabv/remove_roof/picture_%06d.jpg'%(imagenum)
+        if not os.path.exists('../../data/hhabv/remove_roof'):
+            os.makedirs('../../data/hhabv/remove_roof')
         # hha
         #grid_file = '../../data/hhabv/projecting_noroof_all/picture_%06d.npy'%(imagenum)
         grid = np.zeros((3,len(idxy),len(idxx)))
         max_idxy = np.nanmax(idxy)
-        if not os.path.exists(grid_file):
-            grid = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx)
-            img = np.transpose(grid, (1,2,0))
-            cv2.imwrite(grid_file, img)
-            cv2.imwrite(grid_file_pascal, img)
-            #np.save(grid_file_2ch,grid[1:])
-            #np.save(grid_file_hhagray,grid)
+        grid = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx)
+        #np.save(grid_file_2ch,grid[1:])
+        #np.save(grid_file_hhagray,grid)
+        grid = np.transpose(grid, (1,2,0))
+        #plt.imshow(grid), plt.show()
+        #pdb.set_trace()
+        cv2.imwrite(grid_file_hhagray, grid)
         #else:
         #    print "grid file done."
         
@@ -497,8 +513,8 @@ if __name__ == '__main__':
     lst = map(str, lst)
     ah = open('nobox_image.txt', 'r');bah=ah.read();aah=bah.split('\n')[:-1]
     lst = [i for j, i in enumerate(lst) if i not in aah]
-    runrun('1')
-    #pool.map(runrun, lst)
-    #pool.close()
-    #pool.join()
+    #runrun('1')
+    pool.map(runrun, lst)
+    pool.close()
+    pool.join()
     fid_nobox.close()
