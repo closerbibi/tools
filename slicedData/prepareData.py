@@ -22,19 +22,33 @@ import itertools
 import rankpooling as rp
 import cv2
 from functools import partial
+from PIL import Image
 
 
-def occlusion(lpc_id, cam_center):
+def z_buffer(voxel_world, cam_center, idxx, idxy, idxz):
     # create occlusion map
-    occu = np.zeros(np.shape(lpc_id))
-    # loop over each occupied point
-    for i in xrange(len(lpc_id)):
-        # create ray emmit from camera
-        ray = lpc_id[:,i] - cam_center
-        ray /= np.linalg.norm(ray) # normalize, make it vetor
-        # assign passby point to occluded (in pc lpc_id range, and not occupied)
+    occu = np.zeros((len(idxy),len(idxx),len(idxz)))
 
-    print ""
+    ## sorting array by x
+    voxel_world = voxel_world[:,~np.isnan(voxel_world[0])]
+    voxel_trans = np.transpose(voxel_world,(1,0))
+    voxel_x_sort = voxel_trans[voxel_trans[:, 0].argsort()]
+    voxel_x_sort = np.transpose(voxel_x_sort,(1,0))
+    # looping over each x-z pixel
+    for ix in idxx:
+        x_loc = np.where(voxel_x_sort[0].astype(int)==ix)
+        for iz in idxz:
+            # location of occupied pixel
+            xy_eligible = np.where(voxel_x_sort[2][x_loc].astype(int)==iz)[0]
+            
+            if len(xy_eligible) > 0:
+                # find occlusion starting point
+                starty = int(np.nanmin(voxel_x_sort[1][x_loc][xy_eligible]))
+                rev_starty = len(idxy)-1 - starty
+                occu[0:rev_starty,ix,iz] = 100
+
+    occu_map = np.max(occu, axis=2)
+    return occu_map
 
 def rescale_pc(pc):
     pcx_shift = pc[0]-np.nanmin(pc[0])
@@ -45,11 +59,12 @@ def rescale_pc(pc):
     largez = np.floor(pcz_shift*100)
     lpc_id = np.vstack((largex,largey,pc[2],range(len(pc[2]))))
     # new voxelized z point cloud
-    #lpc_id = np.vstack((largex,largey,largez,range(len(pc[2]))))
+    voxel_world = np.vstack((largex,largey,largez,range(len(pc[2]))))
     idxx = range(int(np.nanmin(lpc_id[0])),int(np.nanmax(lpc_id[0])+1),1)
     idxy = range(int(np.nanmin(lpc_id[1])),int(np.nanmax(lpc_id[1])+1),1)
+    idxz = range(int(np.nanmin(voxel_world[2])),int(np.nanmax(voxel_world[2])+1),1)
     cam_center = np.array([np.nanmin(pc[0]), np.nanmin(pc[1]), np.nanmin(pc[2])])
-    return idxx,idxy,lpc_id#,cam_center
+    return idxx,idxy,idxz,lpc_id,cam_center, voxel_world
 
 
 def rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagenum):
@@ -98,7 +113,7 @@ def rescale_box(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagen
             ymax[kk] = np.nanmax(idxy)-1
     return xmin, ymin, xmax, ymax, zmin, zmax, clss
 
-def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
+def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx,occu_map):
 
     ### color image or hha image, both are (2,1,0)
     hha_name = '/home/closerbibi/workspace/data/hha/NYU%04d.png'%(int(img_idx))
@@ -110,7 +125,7 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
     height = hha[:,:,1] # hha: height, green
     disparity = hha[:,:,2] # hha: disparity, red
     # choose img type
-    img = bgr # !!!!!!!!!!!!!!!
+    img = hha # !!!!!!!!!!!!!!!
 
     ## sorting array by x
     lpc_id = lpc_id[:,~np.isnan(lpc_id[0])]
@@ -143,6 +158,7 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
                         grid[0][rviy][ix] = img[:,:,0][hmap,wmap]
                         grid[1][rviy][ix] = img[:,:,1][hmap,wmap]
                         grid[2][rviy][ix] = img[:,:,2][hmap,wmap]
+                        occu_map[rviy][ix] = 0
                         break
                     else:
                         continue
@@ -151,7 +167,7 @@ def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
                 grid[0][rviy][ix] = 0
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
                 grid[2][rviy][ix] = 0
-
+    grid[2] = occu_map
     return grid
 
 def constructing_grid_pj(max_idxy,idxx,idxy,grid,lpc_id,img_idx):
@@ -272,7 +288,7 @@ def plot_3d(pc, xmin, xmax, ymin, ymax, zmin, zmax):
     ax.set_zlabel('Z Label')
     plt.show()
 
-def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax):
+def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax,occu_map):
     points_height = pc[2,:]
     ceiling = np.nanmax(points_height)
     floor = np.nanmin(points_height)
@@ -291,18 +307,18 @@ def to2D(pc, imagenum, idxx, idxy, lpc_id, method, img_idx, zmin, zmax):
 
     if method == 'projecting':
         # rgb
-        grid_file_2ch = '../../data/hhabv/2ch/picture_%06d.npy'%(imagenum)
-        grid_file = '../../data/rgbbv/projecting_noroof_all_jpg/picture_%06d.jpg'%(imagenum)
-        grid_file_pascal = '../../data/rgbbv/projecting_noroof_all_pascal_jpg/%06d.jpg'%(imagenum)
+        #grid_file_2ch = '../../data/hhabv/2ch/picture_%06d.npy'%(imagenum)
+        grid_file = '../../data/hhabv/occlu_jpg_v2/picture_%06d.jpg'%(imagenum)
+        #grid_file_pascal = '../../data/rgbbv/projecting_noroof_all_pascal_jpg/%06d.jpg'%(imagenum)
         # hha
         #grid_file = '../../data/hhabv/projecting_noroof_all/picture_%06d.npy'%(imagenum)
         grid = np.zeros((3,len(idxy),len(idxx)))
         max_idxy = np.nanmax(idxy)
         if not os.path.exists(grid_file):
-            grid = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx)
+            grid = constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx,occu_map)
             img = np.transpose(grid, (1,2,0))
             cv2.imwrite(grid_file, img)
-            cv2.imwrite(grid_file_pascal, img)
+            #cv2.imwrite(grid_file_pascal, img)
             #np.save(grid_file_2ch,grid[1:])
             #np.save(grid_file_hhagray,grid)
         #else:
@@ -464,7 +480,8 @@ def runrun(imagenum):
     print 'now at image: %d' % (imagenum)
 
     # rescale pc
-    idxx, idxy, lpc_id = rescale_pc(pc)
+    idxx, idxy, idxz, lpc_id, cam_center, voxel_world = rescale_pc(pc)
+    occu_map = z_buffer(voxel_world, cam_center, idxx, idxy, idxz)
 
     clss=box_pc['clss'][0]
     ymin = box_pc['ymin'][0]; ymax=box_pc['ymax'][0]; xmin=box_pc['xmin'][0]; xmax=box_pc['xmax'][0]; zmin=box_pc['zmin'][0]; zmax=box_pc['zmax'][0];
@@ -473,7 +490,7 @@ def runrun(imagenum):
     clss[0]
         
     #reduct dimension to 2D    
-    to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax)
+    to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax,occu_map)
     #fid = open('../../data/fg/picture_%06d.txt'%(imagenum),'w')
     #fid = open('../../data/label_pascal/%06d.txt'%(imagenum),'w') # for pascal voc format
     #for k in xrange(len(clss)):
@@ -503,8 +520,7 @@ if __name__ == '__main__':
     lst = map(str, lst)
     ah = open('nobox_image.txt', 'r');bah=ah.read();aah=bah.split('\n')[:-1]
     lst = [i for j, i in enumerate(lst) if i not in aah]
-    runrun('1')
-    #pool.map(runrun, lst)
-    #pool.close()
-    #pool.join()
+    pool.map(runrun, lst)
+    pool.close()
+    pool.join()
     fid_nobox.close()
