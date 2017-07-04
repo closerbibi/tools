@@ -23,9 +23,38 @@ import rankpooling as rp
 import cv2
 from functools import partial
 from PIL import Image
+from numpy.linalg import norm
 
+def voxel_occlu(voxel_world, cam_center, idxx, idxy, idxz, imagenum):
+    # !! cam_center: x,y,z <--> occlu: y,x,z(for visualization)
+    occlu = np.zeros((len(idxy),len(idxx),len(idxz)))
+    thre = 5
+    t1 = time.time()
+    diss = []
+    for i in idxx:
+        for jj in idxy:
+            for k in idxz:
+                count = 0
+                p1p2 = cam_center-[i,jj,k]
+                normp1p2 = norm(p1p2)
+                for num in xrange(voxel_world.shape[1]):
+                    # line: p1, p2; point: p3
+                    # d = norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
+                    dis = norm(np.cross(p1p2, voxel_world[:3,num] - np.array([i,jj,k])))/normp1p2
+                    diss += [dis]
+                    if dis < thre:
+                        count += 1
+                    if count >= 1:
+                        rev_y = len(idxy)-1 - jj
+                        occlu[rev_y,i,k] = 100 # y, x, z
+                        continue
+    print time.time()-t1
+    tmp = 'tmp/occlu_%06d.npy'%(int(imagenum))
+    np.save(tmp, occlu)
+    pdb.set_trace()
+    
 
-def z_buffer(voxel_world, cam_center, idxx, idxy, idxz):
+def z_buffer(voxel_world, idxx, idxy, idxz):
     # create occlusion map
     occu = np.zeros((len(idxy),len(idxx),len(idxz)))
 
@@ -64,6 +93,7 @@ def rescale_pc(pc):
     idxy = range(int(np.nanmin(lpc_id[1])),int(np.nanmax(lpc_id[1])+1),1)
     idxz = range(int(np.nanmin(voxel_world[2])),int(np.nanmax(voxel_world[2])+1),1)
     cam_center = np.array([np.nanmin(pc[0]), np.nanmin(pc[1]), np.nanmin(pc[2])])
+    cam_center = np.floor(np.absolute(cam_center*100))*[1,-1,1]
     return idxx,idxy,idxz,lpc_id,cam_center, voxel_world
 
 
@@ -481,7 +511,8 @@ def runrun(imagenum):
 
     # rescale pc
     idxx, idxy, idxz, lpc_id, cam_center, voxel_world = rescale_pc(pc)
-    occu_map = z_buffer(voxel_world, cam_center, idxx, idxy, idxz)
+    voxel_occlu(voxel_world, cam_center, idxx, idxy, idxz, imagenum)
+    occu_map = z_buffer(voxel_world, idxx, idxy, idxz)
 
     clss=box_pc['clss'][0]
     ymin = box_pc['ymin'][0]; ymax=box_pc['ymax'][0]; xmin=box_pc['xmin'][0]; xmax=box_pc['xmax'][0]; zmin=box_pc['zmin'][0]; zmax=box_pc['zmax'][0];
@@ -520,7 +551,8 @@ if __name__ == '__main__':
     lst = map(str, lst)
     ah = open('nobox_image.txt', 'r');bah=ah.read();aah=bah.split('\n')[:-1]
     lst = [i for j, i in enumerate(lst) if i not in aah]
-    pool.map(runrun, lst)
-    pool.close()
-    pool.join()
+    runrun('1')
+    #pool.map(runrun, lst)
+    #pool.close()
+    #pool.join()
     fid_nobox.close()
