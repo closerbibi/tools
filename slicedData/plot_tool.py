@@ -39,7 +39,7 @@ def plot_2d_pc_bbox(grid, xmin, ymin, xmax, ymax, layer, typedata):
     plt.show(block=False)
 
 
-def plot_3d(pc, xmin, xmax, ymin, ymax, zmin, zmax):
+def plot_3d(pc, xmin, xmax, ymin, ymax, zmin, zmax, angle):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     '''
@@ -58,10 +58,12 @@ def plot_3d(pc, xmin, xmax, ymin, ymax, zmin, zmax):
         #plt.setp(ax.scatter(0, 0, 0), color='yellow')
     '''
     color = ['r']
-    xs = pc[0][range(0,len(pc[0]),50)]
-    ys = pc[1][range(0,len(pc[1]),50)]
-    zs = pc[2][range(0,len(pc[2]),50)]
-    ax.scatter(xs, ys, zs, c=color, marker='o')
+    xs = pc[0][range(0,len(pc[0]),500)]
+    ys = pc[1][range(0,len(pc[1]),500)]
+    zs = pc[2][range(0,len(pc[2]),500)]
+    angles = angle[range(0,len(pc[2]),500)]
+    #ax.scatter(xs, ys, zs, c=color, marker='o')
+    ax.scatter(xs, ys, zs, c=angles)
     for kk in xrange(len(xmin)):
         rx = [xmin[kk], xmax[kk]]
         ry = np.nanmax(ys) - [ymax[kk], ymin[kk]]

@@ -29,7 +29,6 @@ def hhagrid(lpc_id, hha, imagenum, grid, idxx, idxy):
     lpc_trans = np.transpose(lpc_id,(1,0))
     lpc_x_sort = lpc_trans[lpc_trans[:, 0].argsort()]
     lpc_x_sort = np.transpose(lpc_x_sort,(1,0))
-    pdb.set_trace()
 
     for ix in idxx:
         x_loc = np.where(lpc_x_sort[0].astype(int)==ix)
@@ -49,10 +48,12 @@ def hhagrid(lpc_id, hha, imagenum, grid, idxx, idxy):
                     #original_idx1 = xy_eligible[np.argmax(z_lst)]
                     location = lpc_x_sort[3,x_loc][0, original_idx].astype(int) # mapping two times
                     #location1 = lpc_x_sort[3,x_loc][0, original_idx1].astype(int)
-                    if hha[location,2] < 190: # pruning roof base on angle
-                        grid[0][rviy][ix] = hha[location,2]
-                        grid[1][rviy][ix] = hha[location,1]
-                        grid[2][rviy][ix] = hha[location,0]
+                    #if hha[location,2] < 190: # pruning roof base on angle
+                    if hha[location,1] < 170: # pruning roof base on height
+                        grid[0][rviy][ix] = hha[location,2] # angle
+                        grid[1][rviy][ix] = hha[location,2] # height
+                        grid[2][rviy][ix] = hha[location,2] # disparity
+                        ######### All angle ############
                         break
                     else:
                         continue
@@ -60,7 +61,7 @@ def hhagrid(lpc_id, hha, imagenum, grid, idxx, idxy):
                 grid[0][rviy][ix] = 0
                 grid[1][rviy][ix] = 0 #np.nanmin(height)
                 grid[2][rviy][ix] = 0
-    #grid[2] = occu_map
+    #plt.imshow(grid[0]);plt.colorbar();plt.show()
     return grid
 
 def constructing_grid_pj_prune_roof(max_idxy,idxx,idxy,grid,lpc_id,img_idx,occu_map):

@@ -32,7 +32,7 @@ from rescale_data import *
 
 def hhatobv(lpc_id, hhavalue, imagenum, idxx, idxy):
     # pc: (x, z, -y), z is depth
-    grid_file_path = '../../data/hhabv/upsample'
+    grid_file_path = '../../data/hhabv/upsample_remove_baseon_height_all_angle'
     if not os.path.exists(grid_file_path):
         os.makedirs(grid_file_path)
     gfile = grid_file_path + '/picture_{:06d}.jpg'.format(imagenum)
@@ -244,8 +244,8 @@ def runhhacloud(imagenum):
     # rescale box to fit image size
     xmin, ymin, xmax, ymax, zmin, zmax, clss = rescale_box(xmin, ymin, xmax, ymax, zmin, zmax,
                                                            pc/100., idxx, idxy, clss, imagenum)
-    #plot_3d(lpc_id, xmin, xmax, ymin, ymax, zmin, zmax)
-    #reduct dimension to 2D    
+    #plot_3d(lpc_id, xmin, xmax, ymin, ymax, zmin, zmax, hhavalue[:,2])
+    #reduct dimension to 2D
     hhatobv(lpc_id, hhavalue, imagenum, idxx, idxy)
     #fid = open('../../data/fg/picture_%06d.txt'%(imagenum),'w')
     label_dir = '../../data/label_19_upsample'
@@ -287,7 +287,6 @@ def runrun(imagenum):
     xmin, ymin, xmax, ymax, zmin, zmax, clss = rescale_box_200(xmin, ymin, xmax, ymax, zmin, zmax, pc, idxx, idxy, clss, imagenum)
 
     plot_3d(lpc_id, xmin, xmax, ymin, ymax, zmin, zmax)
-    pdb.set_trace()
     #reduct dimension to 2D    
     to2D(pc, imagenum, idxx, idxy, lpc_id, 'projecting', imagenum, zmin, zmax,occu_map)
     #fid = open('../../data/fg/picture_%06d.txt'%(imagenum),'w')
@@ -321,11 +320,11 @@ if __name__ == '__main__':
     lst = map(str, lst)
     ah = open('nobox_image.txt', 'r');bah=ah.read();aah=bah.split('\n')[:-1]
     lst = [i for j, i in enumerate(lst) if i not in aah]
-    runhhacloud('1')
-    #pool = Pool( processes=4 )
-    #pool.map(runhhaclud, lst)
-    #pool.close()
-    #pool.join()
+    #runhhacloud('1')
+    pool = Pool( processes=3 )
+    pool.map(runhhacloud, lst)
+    pool.close()
+    pool.join()
     fid_nobox.close()
 
 
