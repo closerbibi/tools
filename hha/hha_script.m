@@ -5,7 +5,7 @@
 imList = dir('depth');
 C = load('cameraIntrinsics.mat');
 C = C.C;
-outDir = 'results';
+outDir = 'results_1_1449';
 
 parfor i = 3:length(imList),
 %for i = 3:length(imList),
