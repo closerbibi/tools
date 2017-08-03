@@ -1,4 +1,4 @@
-import os, pdb
+import os, pdb, cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,17 +8,22 @@ def show_data_bv(ID):
     data_path = img_path + '/' + ID
     grid_rgb = np.load(data_path + '/grid_rgb_dense.npy')
     grid_depth = np.load(data_path + '/grid_depth_dense.npy')
-    grid_rgb = np.transpose(grid_rgb,(1,2,0))
+    grid_rgb = np.transpose(grid_rgb[(2,1,0),:,:],(1,2,0))
+    cv2.imwrite(data_path + '/grid_rgb_dense.jpg', grid_rgb)
+    cv2.imwrite(data_path + '/grid_depth_dense.jpg', grid_depth)
+    '''
     plt.figure(1)
     plt.imshow(grid_rgb)
     plt.title('rgb')
     plt.show()
+    pdb.set_trace()
 
     plt.figure(2)
     plt.imshow(grid_depth)
     plt.title('depth')
     plt.colorbar()
     plt.show()
+    '''
 
 
 
