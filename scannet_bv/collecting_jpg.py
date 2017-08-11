@@ -10,7 +10,7 @@ flst = sorted(os.listdir(src_path))
 for f in flst:
     if '_00' in f:
         try:
-            copyfile(src_path+f+'/grid_rgb_dense_align.jpg', dst_path+f)
+            copyfile(src_path+f+'/grid_rgb_dense_align.jpg', dst_path+f+'.jpg')
             print(f)
         except:
             continue
